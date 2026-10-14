@@ -13,6 +13,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithConfig:(StyleConfig *)config;
 
 - (void)applyLatex:(NSString *)latex;
+- (void)applyInlineLatex:(NSString *)latex
+             displayMode:(BOOL)displayMode
+                fontSize:(CGFloat)fontSize
+                   color:(RCTUIColor *)color;
 
 - (CGFloat)measureHeight:(CGFloat)maxWidth;
 

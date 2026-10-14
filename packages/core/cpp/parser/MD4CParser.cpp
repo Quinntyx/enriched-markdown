@@ -549,25 +549,13 @@ bool isSeparatorNode(const MarkdownASTNode &node) {
          (node.type == NodeType::Text && node.content.find_first_not_of(" \t\n\r") == std::string::npos);
 }
 
-// A display-math node is "isolated" — i.e. block-level — when at least one of its
-// neighbours is a boundary: the paragraph edge, or a separator (LineBreak / blank
-// text). Display math flanked by real text on BOTH sides (e.g. `a $$x$$ b`) is
-// genuinely inline and is left in place.
-bool isIsolatedDisplayMath(const std::vector<std::shared_ptr<MarkdownASTNode>> &children, size_t i) {
-  if (!isDisplayMathNode(*children[i]))
-    return false;
-  bool leftBoundary = (i == 0) || isSeparatorNode(*children[i - 1]);
-  bool rightBoundary = (i + 1 >= children.size()) || isSeparatorNode(*children[i + 1]);
-  return leftBoundary || rightBoundary;
-}
-
 // md4c parses $$...$$ as an inline span, so display math always lands nested inside a
 // Paragraph — even when it sits on its own line, and even in the middle of a paragraph
 // (text on lines before and after it, with no blank separator).
 //
 // This rebuilds such a paragraph into a sequence of top-level siblings so the rendering
-// layer sees isolated display math as a block: each run of inline content becomes its own
-// Paragraph, and each isolated display-math node becomes a bare LatexMathDisplay sibling.
+// layer sees display math as a block: each run of inline content becomes its own
+// Paragraph, and each display-math node becomes a bare LatexMathDisplay sibling.
 // Separators bordering a promoted node are dropped. Returns an empty vector when the
 // paragraph has no promotable display math, signalling the caller to leave it untouched.
 //
@@ -578,7 +566,7 @@ std::vector<std::shared_ptr<MarkdownASTNode>>
 splitParagraphAroundDisplayMath(const std::vector<std::shared_ptr<MarkdownASTNode>> &children) {
   bool anyPromotion = false;
   for (size_t i = 0; i < children.size(); ++i) {
-    if (isIsolatedDisplayMath(children, i)) {
+    if (isDisplayMathNode(*children[i])) {
       anyPromotion = true;
       break;
     }
@@ -607,7 +595,7 @@ splitParagraphAroundDisplayMath(const std::vector<std::shared_ptr<MarkdownASTNod
   };
 
   for (size_t i = 0; i < children.size(); ++i) {
-    if (isIsolatedDisplayMath(children, i)) {
+    if (isDisplayMathNode(*children[i])) {
       flushInlineRun();
       result.push_back(children[i]);
     } else {
@@ -619,9 +607,13 @@ splitParagraphAroundDisplayMath(const std::vector<std::shared_ptr<MarkdownASTNod
   return result;
 }
 
-// Walk the document's top-level children and promote isolated display math out of its
-// parent Paragraph so the rendering layer sees it as a top-level block element.
+// Promote display math at every nesting depth; tables keep formulas in their cells.
 void promoteDisplayMathFromParagraphs(MarkdownASTNode &root) {
+  // Tables keep display formulas inside their cells so the table owns scrolling.
+  if (root.type == NodeType::Table)
+    return;
+  for (const auto &child : root.children)
+    promoteDisplayMathFromParagraphs(*child);
   auto &children = root.children;
 
   for (size_t i = 0; i < children.size();) {
@@ -637,6 +629,9 @@ void promoteDisplayMathFromParagraphs(MarkdownASTNode &root) {
       continue;
     }
 
+    for (auto &node : replacement)
+      if (node->type == NodeType::Paragraph)
+        node->attributes = paragraph->attributes;
     auto position = children.erase(children.begin() + static_cast<NodeList::difference_type>(i));
     children.insert(position, replacement.begin(), replacement.end());
     i += replacement.size();
@@ -868,8 +863,8 @@ std::shared_ptr<MarkdownASTNode> MD4CParser::parse(const std::string &markdown, 
   impl_->flushText();
 
   if (impl_->root) {
-    promoteDisplayMathFromParagraphs(*impl_->root);
     wrapListItemInlineRuns(*impl_->root);
+    promoteDisplayMathFromParagraphs(*impl_->root);
     promoteVideosFromListItems(*impl_->root);
   }
 

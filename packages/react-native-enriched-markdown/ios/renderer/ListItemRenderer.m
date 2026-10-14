@@ -1,4 +1,8 @@
 #import "ListItemRenderer.h"
+#import "ENRMFeatureFlags.h"
+#if ENRICHED_MARKDOWN_MATH
+#import "ENRMMathInlineAttachment.h"
+#endif
 #import "BlockquoteBorder.h"
 #import "ENRMUIKit.h"
 #import "LastElementUtils.h"
@@ -153,6 +157,18 @@ NSString *const TaskIndexAttribute = @"TaskIndex";
                       [skipRanges addObject:[NSValue valueWithRange:range]];
                     }
                   }];
+#if ENRICHED_MARKDOWN_MATH
+  [output enumerateAttribute:NSAttachmentAttributeName
+                     inRange:itemRange
+                     options:0
+                  usingBlock:^(id value, NSRange range, BOOL *stop) {
+                    if ([value isKindOfClass:ENRMMathInlineAttachment.class] &&
+                        ((ENRMMathInlineAttachment *)value).displayMode) {
+                      NSRange paragraphRange = [output.string paragraphRangeForRange:range];
+                      [skipRanges addObject:[NSValue valueWithRange:paragraphRange]];
+                    }
+                  }];
+#endif
   [skipRanges sortUsingComparator:^NSComparisonResult(NSValue *a, NSValue *b) {
     NSUInteger la = [a rangeValue].location;
     NSUInteger lb = [b rangeValue].location;

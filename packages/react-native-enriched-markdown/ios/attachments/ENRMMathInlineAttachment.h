@@ -13,6 +13,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) ENRMLatexErrorHandler onLatexError;
 
 @property (nonatomic, readonly) CGFloat boxHeight;
+@property (nonatomic, readonly) CGFloat formulaWidth;
+@property (nonatomic, assign) BOOL tableCell;
+#if !TARGET_OS_OSX
+@property (nonatomic, assign, readonly) BOOL overflowsLine;
+#endif
 
 #if TARGET_OS_OSX
 /// Pre-renders the formula into self.image and sets self.bounds.

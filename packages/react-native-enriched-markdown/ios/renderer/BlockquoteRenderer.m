@@ -149,14 +149,23 @@ static NSString *const kNestedInfoRangeKey = @"range";
   [self enumerateNonListRangesIn:output
                            range:innerRange
                       usingBlock:^(NSRange nonListRange) {
-                        NSMutableParagraphStyle *paragraphStyle =
-                            getOrCreateParagraphStyle(output, nonListRange.location);
-                        paragraphStyle.firstLineHeadIndent = totalIndent;
-                        paragraphStyle.headIndent = totalIndent;
-                        if (padding > 0) {
-                          paragraphStyle.tailIndent = -padding;
-                        }
-                        [output addAttribute:NSParagraphStyleAttributeName value:paragraphStyle range:nonListRange];
+                        // Display equations have their own alignment and spacing inside the quote.
+                        [output enumerateAttribute:NSParagraphStyleAttributeName
+                                           inRange:nonListRange
+                                           options:0
+                                        usingBlock:^(NSParagraphStyle *value, NSRange paragraphRange, BOOL *stop) {
+                                          NSMutableParagraphStyle *paragraphStyle =
+                                              value ? [value mutableCopy]
+                                                    : getOrCreateParagraphStyle(output, paragraphRange.location);
+                                          paragraphStyle.firstLineHeadIndent = totalIndent;
+                                          paragraphStyle.headIndent = totalIndent;
+                                          if (padding > 0) {
+                                            paragraphStyle.tailIndent = -padding;
+                                          }
+                                          [output addAttribute:NSParagraphStyleAttributeName
+                                                         value:paragraphStyle
+                                                         range:paragraphRange];
+                                        }];
                         applyLineHeight(output, nonListRange, lineHeight);
                         applyBaselineOffset(output, nonListRange);
                       }];

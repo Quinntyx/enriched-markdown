@@ -5,6 +5,7 @@
 #import "ENRMAsyncRenderCoordinator.h"
 #import "ENRMAtomicSize.h"
 #import "ENRMContextMenuTextView+macOS.h"
+#import "ENRMDynamicBlockProps.h"
 #import "ENRMImageAttachment.h"
 #import "ENRMLatexErrorCoordinator.h"
 #import "ENRMLinkContextMenus.h"
@@ -776,6 +777,16 @@ typedef NS_OPTIONS(NSUInteger, ENRMDirtyFlags) {
         [[NSString alloc] initWithUTF8String:newViewProps.accessibilityLabels.rotor.images.c_str()];
     _accessibilityNeedsRebuild = YES;
   }
+
+#if ENRICHED_MARKDOWN_MATH && !TARGET_OS_OSX
+  ENRMMarkdownTextView *markdownTextView = (ENRMMarkdownTextView *)_textView;
+  if (!markdownTextView.mathDynamicProps)
+    markdownTextView.mathDynamicProps = [[ENRMDynamicBlockProps alloc] init];
+  markdownTextView.mathDynamicProps.enableBlockContextMenu = newViewProps.enableBlockContextMenu;
+  markdownTextView.mathDynamicProps.copyLabel = _selectionMenuLabels.copyLabel;
+  markdownTextView.mathDynamicProps.copyAsMarkdownLabel = _selectionMenuLabels.copyAsMarkdownLabel;
+  markdownTextView.mathAccessibilityLabels = _accessibilityLabels;
+#endif
 
   if (newViewProps.streamingAnimation != oldViewProps.streamingAnimation) {
     _streamingAnimation = newViewProps.streamingAnimation;

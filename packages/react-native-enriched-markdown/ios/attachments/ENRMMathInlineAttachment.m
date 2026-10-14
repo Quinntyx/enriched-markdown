@@ -11,6 +11,14 @@
 
 @implementation ENRMMathInlineAttachment
 
+- (CGFloat)formulaWidth
+{
+#if !TARGET_OS_OSX
+  [self prepareIfNeeded];
+#endif
+  return _cachedSize.width;
+}
+
 - (CGFloat)boxHeight
 {
 #if !TARGET_OS_OSX
@@ -68,7 +76,10 @@
                             characterIndex:(NSUInteger)characterIndex
 {
   [self prepareIfNeeded];
-  return CGRectMake(0, -_mathDescent, _cachedSize.width, _cachedSize.height);
+  CGFloat availableWidth = lineFragment.size.width - textContainer.lineFragmentPadding * 2;
+  self.overflowsLine = !self.tableCell && availableWidth > 0 && _cachedSize.width > availableWidth;
+  CGFloat width = self.overflowsLine ? availableWidth : _cachedSize.width;
+  return CGRectMake(0, -_mathDescent, width, _cachedSize.height);
 }
 
 - (UIImage *)imageForBounds:(CGRect)imageBounds
@@ -82,14 +93,16 @@
   UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat preferredFormat];
   format.opaque = NO;
 
+  if (self.overflowsLine) {
+    UIGraphicsImageRenderer *transparent = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(1, 1)
+                                                                                  format:format];
+    return [transparent imageWithActions:^(UIGraphicsImageRendererContext *rendererContext){}];
+  }
   UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:_cachedSize format:format];
-
   return [renderer imageWithActions:^(UIGraphicsImageRendererContext *rendererContext) {
+    CGContextRef ctx = rendererContext.CGContext;
     if (_renderResult) {
-      CGContextRef ctx = rendererContext.CGContext;
-      CGContextSaveGState(ctx);
       [_renderResult drawIn:ctx];
-      CGContextRestoreGState(ctx);
     } else {
       [_fallbackSource drawWithRect:CGRectMake(0, 0, _cachedSize.width, _cachedSize.height)
                             options:NSStringDrawingUsesLineFragmentOrigin

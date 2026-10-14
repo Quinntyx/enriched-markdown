@@ -8,7 +8,18 @@ import kotlin.math.roundToInt
 /** Holds pre-computed math metrics for background-thread measurement. */
 class MathInlinePlaceholderSpan(
   private val metrics: MathMetrics,
-) : ReplacementSpan() {
+) : ReplacementSpan(),
+  WidthAwareMathSpan {
+  private var availableWidth = Int.MAX_VALUE
+
+  override fun naturalWidth() = metrics.width
+
+  override fun setAvailableWidth(width: Int): Boolean {
+    val changed = availableWidth != width
+    availableWidth = width
+    return changed
+  }
+
   override fun getSize(
     paint: Paint,
     text: CharSequence?,
@@ -22,7 +33,7 @@ class MathInlinePlaceholderSpan(
       descent = metrics.descent.roundToInt()
       bottom = descent
     }
-    return metrics.width
+    return metrics.width.coerceAtMost(availableWidth)
   }
 
   override fun draw(

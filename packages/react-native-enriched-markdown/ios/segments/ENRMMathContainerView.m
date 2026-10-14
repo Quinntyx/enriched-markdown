@@ -62,6 +62,8 @@
 @end
 
 @implementation ENRMMathContainerView {
+  BOOL _inlineOverlay;
+  BOOL _displayMode;
   BOOL _parseFailed;
   NSString *_parseMessage;
 }
@@ -69,7 +71,7 @@
 - (void)reportLatexErrorIfNeeded
 {
   if (_parseFailed && self.onLatexError) {
-    self.onLatexError(_cachedLatex, _parseMessage ?: @"", YES);
+    self.onLatexError(_cachedLatex, _parseMessage ?: @"", _displayMode);
   }
 }
 
@@ -106,17 +108,36 @@
 
 - (void)applyLatex:(NSString *)latex
 {
+  _inlineOverlay = NO;
+  [self renderLatex:latex displayMode:YES fontSize:self.config.mathFontSize color:self.config.mathColor];
+}
+
+- (void)applyInlineLatex:(NSString *)latex
+             displayMode:(BOOL)displayMode
+                fontSize:(CGFloat)fontSize
+                   color:(RCTUIColor *)color
+{
+  _inlineOverlay = YES;
+  [self renderLatex:latex displayMode:displayMode fontSize:fontSize color:color];
+}
+
+- (CGFloat)mathPadding
+{
+  return _inlineOverlay ? 0 : self.config.mathPadding;
+}
+
+- (void)renderLatex:(NSString *)latex displayMode:(BOOL)displayMode fontSize:(CGFloat)fontSize color:(RCTUIColor *)color
+{
+  _displayMode = displayMode;
   _cachedLatex = [latex copy];
   _parseFailed = NO;
   _parseMessage = nil;
 
-  StyleConfig *config = self.config;
-
   NSError *error = nil;
   ENRMRaTeXRenderResult *result = [ENRMRaTeXBridge parse:latex
-                                             displayMode:YES
-                                                fontSize:config.mathFontSize
-                                                   color:config.mathColor
+                                             displayMode:displayMode
+                                                fontSize:fontSize
+                                                   color:color
                                                    error:&error];
   if (!result) {
     _parseFailed = YES;
@@ -124,12 +145,12 @@
     [self reportLatexErrorIfNeeded];
   }
   _mathView.renderResult = result;
-  _mathView.fallbackSource = result ? nil : ENRMMathFallbackString(latex, @"$$", config.mathFontSize, config.mathColor);
+  _mathView.fallbackSource = result ? nil : ENRMMathFallbackString(latex, displayMode ? @"$$" : @"$", fontSize, color);
 
-  CGFloat padding = config.mathPadding;
+  CGFloat padding = [self mathPadding];
   _mathView.frame = CGRectMake(padding, padding, ceil(result.width), ceil(result.totalHeight));
 
-  self.backgroundColor = config.mathBackgroundColor;
+  self.backgroundColor = _inlineOverlay ? RCTUIColor.clearColor : self.config.mathBackgroundColor;
 
   [_mathView invalidateIntrinsicContentSize];
 #if !TARGET_OS_OSX
@@ -188,7 +209,12 @@
 
 - (void)copyMarkdownToPasteboard
 {
-  copyStringToPasteboard([NSString stringWithFormat:@"$$\n%@\n$$", _cachedLatex]);
+  if (!_inlineOverlay) {
+    copyStringToPasteboard([NSString stringWithFormat:@"$$\n%@\n$$", _cachedLatex]);
+    return;
+  }
+  NSString *delimiter = _displayMode ? @"$$" : @"$";
+  copyStringToPasteboard([NSString stringWithFormat:@"%@%@%@", delimiter, _cachedLatex, delimiter]);
 }
 
 - (CGSize)mathViewIntrinsicSize
@@ -198,7 +224,7 @@
 
 - (CGFloat)measureHeight:(CGFloat)maxWidth
 {
-  CGFloat padding = self.config.mathPadding;
+  CGFloat padding = [self mathPadding];
   if (!_mathView.renderResult && _mathView.fallbackSource) {
     CGFloat available = MAX(maxWidth - padding * 2, 1);
     CGRect bounds = [_mathView.fallbackSource boundingRectWithSize:CGSizeMake(available, CGFLOAT_MAX)
@@ -238,6 +264,8 @@
   if (formulaWidth >= available)
     return padding;
 
+  if (_inlineOverlay)
+    return padding;
   NSString *align = self.config.mathTextAlign;
   if ([align isEqualToString:@"left"])
     return padding;
@@ -250,7 +278,7 @@
 {
   [super layoutSubviews];
 
-  CGFloat padding = self.config.mathPadding;
+  CGFloat padding = [self mathPadding];
 
   if (!_mathView.renderResult && _mathView.fallbackSource) {
     // Fallback source fills the available width and wraps; no horizontal scroll.

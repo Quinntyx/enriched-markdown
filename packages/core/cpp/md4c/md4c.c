@@ -218,7 +218,7 @@ struct MD_CTX_tag {
 #endif
 
     /* For resolving of inline spans. */
-    MD_MARKSTACK opener_stacks[20];
+    MD_MARKSTACK opener_stacks[22];
 #define ASTERISK_OPENERS_oo_mod3_0      (ctx->opener_stacks[0])     /* Opener-only */
 #define ASTERISK_OPENERS_oo_mod3_1      (ctx->opener_stacks[1])
 #define ASTERISK_OPENERS_oo_mod3_2      (ctx->opener_stacks[2])
@@ -239,6 +239,8 @@ struct MD_CTX_tag {
 #define CARET_OPENERS                   (ctx->opener_stacks[17])
 #define EQUAL_OPENERS                   (ctx->opener_stacks[18])
 #define PLUS_OPENERS                    (ctx->opener_stacks[19])
+#define LATEX_PAREN_OPENERS             (ctx->opener_stacks[20])
+#define LATEX_BRACKET_OPENERS           (ctx->opener_stacks[21])
 
     /* Stack of dummies which need to call free() for pointers stored in them.
      * These are constructed during inline parsing and freed after all the block
@@ -269,6 +271,7 @@ struct MD_CTX_tag {
      */
     void* block_bytes;
     MD_BLOCK* current_block;
+    OFF display_math_end; /* Last confirmed equation's exclusive end; also bounds code rescans. */
     int n_block_bytes;
     int alloc_block_bytes;
 
@@ -3235,6 +3238,39 @@ md_is_autolink(MD_CTX* ctx, OFF beg, OFF max_end, OFF* p_end, int* p_missing_mai
 }
 
 static int
+md_is_html_br(MD_CTX* ctx, OFF beg, OFF max_end, OFF* p_end)
+{
+    OFF off = beg + 1;
+
+    MD_ASSERT(CH(beg) == _T('<'));
+
+    if(off + 2 >= max_end)
+        return false;
+
+    if(!ISANYOF2_(CH(off), _T('b'), _T('B')) || !ISANYOF2_(CH(off+1), _T('r'), _T('R')))
+        return false;
+
+    off += 2;
+
+    if(off < max_end && CH(off) == _T('>')) {
+        *p_end = off + 1;
+        return true;
+    }
+
+    if(off + 1 < max_end && CH(off) == _T('/') && CH(off+1) == _T('>')) {
+        *p_end = off + 2;
+        return true;
+    }
+
+    if(off + 2 < max_end && CH(off) == _T(' ') && CH(off+1) == _T('/') && CH(off+2) == _T('>')) {
+        *p_end = off + 3;
+        return true;
+    }
+
+    return false;
+}
+
+static int
 md_collect_marks(MD_CTX* ctx, const MD_LINE* lines, MD_SIZE n_lines, int table_mode)
 {
     MD_SIZE line_index;
@@ -3275,6 +3311,32 @@ md_collect_marks(MD_CTX* ctx, const MD_LINE* lines, MD_SIZE n_lines, int table_m
              * It can go beyond line->end as it may involve escaped new
              * line to form a hard break. */
             if(ch == _T('\\')  &&  off+1 < ctx->size  &&  (ISPUNCT(off+1) || ISNEWLINE(off+1))) {
+                if((ctx->parser.flags & MD_FLAG_LATEXMATHSPANS)  &&
+                   (CH(off+1) == _T('(') || CH(off+1) == _T(')') ||
+                    CH(off+1) == _T('[') || CH(off+1) == _T(']')))
+                {
+                    unsigned flags = 0;
+                    CHAR mark_ch;
+
+                    if(CH(off+1) == _T('(')) {
+                        mark_ch = 'M';
+                        flags = MD_MARK_POTENTIAL_OPENER;
+                    } else if(CH(off+1) == _T(')')) {
+                        mark_ch = 'M';
+                        flags = MD_MARK_POTENTIAL_CLOSER;
+                    } else if(CH(off+1) == _T('[')) {
+                        mark_ch = 'N';
+                        flags = MD_MARK_POTENTIAL_OPENER;
+                    } else {
+                        mark_ch = 'N';
+                        flags = MD_MARK_POTENTIAL_CLOSER;
+                    }
+
+                    ADD_MARK(mark_ch, off, off+2, flags);
+                    off += 2;
+                    continue;
+                }
+
                 /* Hard-break cannot be on the last line of the block. */
                 if(!ISNEWLINE(off+1)  ||  line_index+1 < n_lines)
                     ADD_MARK(ch, off, off+2, MD_MARK_RESOLVED);
@@ -3396,6 +3458,13 @@ md_collect_marks(MD_CTX* ctx, const MD_LINE* lines, MD_SIZE n_lines, int table_m
                 int is_autolink;
                 OFF autolink_end;
                 int missing_mailto;
+                OFF html_br_end;
+
+                if(md_is_html_br(ctx, off, lines[n_lines-1].end, &html_br_end)) {
+                    ADD_MARK(_T('B'), off, html_br_end, MD_MARK_RESOLVED);
+                    off = html_br_end;
+                    continue;
+                }
 
                 if(!(ctx->parser.flags & MD_FLAG_NOHTMLSPANS)) {
                     int is_html;
@@ -4320,6 +4389,46 @@ md_analyze_dollar(MD_CTX* ctx, int mark_index)
 }
 
 static void
+md_analyze_latex_paren(MD_CTX* ctx, int mark_index)
+{
+    MD_MARK* mark = &ctx->marks[mark_index];
+
+    if((mark->flags & MD_MARK_POTENTIAL_CLOSER)  &&  LATEX_PAREN_OPENERS.top >= 0) {
+        int opener_index = LATEX_PAREN_OPENERS.top;
+
+        md_pop_openers(ctx, opener_index);
+        md_disable_marks(ctx, opener_index+1, mark_index);
+        md_resolve_range(ctx, opener_index, mark_index);
+
+        LATEX_PAREN_OPENERS.top = -1;
+        return;
+    }
+
+    if(mark->flags & MD_MARK_POTENTIAL_OPENER)
+        md_mark_stack_push(ctx, &LATEX_PAREN_OPENERS, mark_index);
+}
+
+static void
+md_analyze_latex_bracket(MD_CTX* ctx, int mark_index)
+{
+    MD_MARK* mark = &ctx->marks[mark_index];
+
+    if((mark->flags & MD_MARK_POTENTIAL_CLOSER)  &&  LATEX_BRACKET_OPENERS.top >= 0) {
+        int opener_index = LATEX_BRACKET_OPENERS.top;
+
+        md_pop_openers(ctx, opener_index);
+        md_disable_marks(ctx, opener_index+1, mark_index);
+        md_resolve_range(ctx, opener_index, mark_index);
+
+        LATEX_BRACKET_OPENERS.top = -1;
+        return;
+    }
+
+    if(mark->flags & MD_MARK_POTENTIAL_OPENER)
+        md_mark_stack_push(ctx, &LATEX_BRACKET_OPENERS, mark_index);
+}
+
+static void
 md_analyze_spoiler(MD_CTX* ctx, int mark_index)
 {
     MD_MARK* mark = &ctx->marks[mark_index];
@@ -4659,6 +4768,8 @@ md_analyze_marks(MD_CTX* ctx, const MD_LINE* lines, MD_SIZE n_lines,
             case '~':   md_analyze_tilde(ctx, i); break;
             case '^':   md_analyze_caret(ctx, i); break;
             case '$':   md_analyze_dollar(ctx, i); break;
+            case 'M':   md_analyze_latex_paren(ctx, i); break;
+            case 'N':   md_analyze_latex_bracket(ctx, i); break;
             case '.':   MD_FALLTHROUGH();
             case ':':   MD_FALLTHROUGH();
             case '@':   md_analyze_permissive_autolink(ctx, i); break;
@@ -4699,6 +4810,13 @@ md_analyze_inlines(MD_CTX* ctx, const MD_LINE* lines, MD_SIZE n_lines, int table
     ctx->unresolved_link_tail = -1;
 
     if(table_mode) {
+        /* Math owns its pipes before GFM divides the row into cells. */
+        if(ctx->parser.flags & MD_FLAG_LATEXMATHSPANS) {
+            md_analyze_marks(ctx, lines, n_lines, 0, ctx->n_marks, _T("$MN"), NULL);
+            LATEX_PAREN_OPENERS.top = -1;
+            LATEX_BRACKET_OPENERS.top = -1;
+            DOLLAR_OPENERS.top = -1;
+        }
         /* (2) Analyze table cell boundaries. */
         MD_ASSERT(n_lines == 1);
         ctx->n_table_cell_boundaries = 0;
@@ -4729,8 +4847,11 @@ md_analyze_link_contents(MD_CTX* ctx, const MD_LINE* lines, MD_SIZE n_lines,
     emph_mark_types[n_emph_mark_types++] = _T('&');
     emph_mark_types[n_emph_mark_types++] = _T('*');
     emph_mark_types[n_emph_mark_types++] = _T('_');
-    if(ctx->parser.flags & MD_FLAG_LATEXMATHSPANS)
+    if(ctx->parser.flags & MD_FLAG_LATEXMATHSPANS) {
         emph_mark_types[n_emph_mark_types++] = _T('$');
+        emph_mark_types[n_emph_mark_types++] = _T('M');
+        emph_mark_types[n_emph_mark_types++] = _T('N');
+    }
     if(ctx->parser.flags & MD_FLAG_HIGHLIGHT)
         emph_mark_types[n_emph_mark_types++] = _T('=');
     if(ctx->parser.flags & MD_FLAG_INSERT)
@@ -4980,12 +5101,34 @@ md_process_inlines(MD_CTX* ctx, const MD_LINE* lines, MD_SIZE n_lines)
                     }
                     break;
 
-                case '$':
+                case '$': {
+                    MD_SPANTYPE math_type = mark->end - mark->beg == 1 ? MD_SPAN_LATEXMATH : MD_SPAN_LATEXMATH_DISPLAY;
                     if(mark->flags & MD_MARK_OPENER) {
-                        MD_ENTER_SPAN((mark->end - off) % 2 ? MD_SPAN_LATEXMATH : MD_SPAN_LATEXMATH_DISPLAY, NULL);
+                        MD_ENTER_SPAN(math_type, NULL);
                         text_type = MD_TEXT_LATEXMATH;
                     } else {
-                        MD_LEAVE_SPAN((mark->end - off) % 2 ? MD_SPAN_LATEXMATH : MD_SPAN_LATEXMATH_DISPLAY, NULL);
+                        MD_LEAVE_SPAN(math_type, NULL);
+                        text_type = MD_TEXT_NORMAL;
+                    }
+                    break;
+                }
+
+                case 'M':
+                    if(mark->flags & MD_MARK_OPENER) {
+                        MD_ENTER_SPAN(MD_SPAN_LATEXMATH, NULL);
+                        text_type = MD_TEXT_LATEXMATH;
+                    } else {
+                        MD_LEAVE_SPAN(MD_SPAN_LATEXMATH, NULL);
+                        text_type = MD_TEXT_NORMAL;
+                    }
+                    break;
+
+                case 'N':
+                    if(mark->flags & MD_MARK_OPENER) {
+                        MD_ENTER_SPAN(MD_SPAN_LATEXMATH_DISPLAY, NULL);
+                        text_type = MD_TEXT_LATEXMATH;
+                    } else {
+                        MD_LEAVE_SPAN(MD_SPAN_LATEXMATH_DISPLAY, NULL);
                         text_type = MD_TEXT_NORMAL;
                     }
                     break;
@@ -5105,6 +5248,10 @@ md_process_inlines(MD_CTX* ctx, const MD_LINE* lines, MD_SIZE n_lines)
                     break;
                 }
 
+                case 'B':
+                    MD_TEXT(MD_TEXT_BR, _T("\n"), 1);
+                    break;
+
                 case '&':       /* Entity. */
                     MD_TEXT(MD_TEXT_ENTITY, STR(mark->beg), mark->end - mark->beg);
                     break;
@@ -5134,8 +5281,13 @@ md_process_inlines(MD_CTX* ctx, const MD_LINE* lines, MD_SIZE n_lines)
 
             if(text_type == MD_TEXT_CODE || text_type == MD_TEXT_LATEXMATH) {
                 MD_ASSERT(prev_mark != NULL);
-                MD_ASSERT(ISANYOF2_(prev_mark->ch, '`', '$')  &&  (prev_mark->flags & MD_MARK_OPENER));
-                MD_ASSERT(ISANYOF2_(mark->ch, '`', '$')  &&  (mark->flags & MD_MARK_CLOSER));
+                if(text_type == MD_TEXT_CODE) {
+                    MD_ASSERT(prev_mark->ch == '`'  &&  (prev_mark->flags & MD_MARK_OPENER));
+                    MD_ASSERT(mark->ch == '`'  &&  (mark->flags & MD_MARK_CLOSER));
+                } else {
+                    MD_ASSERT(ISANYOF3_(prev_mark->ch, '$', 'M', 'N')  &&  (prev_mark->flags & MD_MARK_OPENER));
+                    MD_ASSERT(ISANYOF3_(mark->ch, '$', 'M', 'N')  &&  (mark->flags & MD_MARK_CLOSER));
+                }
 
                 /* Inside a code span, trailing line whitespace has to be
                  * outputted. */
@@ -6594,6 +6746,165 @@ md_line_indentation(MD_CTX* ctx, unsigned total_indent, OFF beg, OFF* p_end)
 
 static const MD_LINE_ANALYSIS md_dummy_blank_line = { MD_LINE_BLANK, 0, 0, 0, 0, 0 };
 
+/* Match existing list/blockquote containers. Shared by block analysis and
+ * display-math lookahead so both use the same indentation and prefix rules. */
+static int
+md_match_container_prefix(MD_CTX* ctx, OFF* p_off, unsigned* p_indent, unsigned* p_total)
+{
+    OFF off = *p_off;
+    unsigned indent = *p_indent, total = *p_total;
+    int n_parents = 0;
+
+    while(n_parents < ctx->n_containers) {
+        MD_CONTAINER* c = &ctx->containers[n_parents];
+        if(c->ch == _T('>') && indent < ctx->code_indent_offset &&
+           off < ctx->size && CH(off) == _T('>')) {
+            off++;
+            total++;
+            indent = md_line_indentation(ctx, total, off, &off);
+            total += indent;
+            /* The optional first space belongs to the quote mark. */
+            if(indent > 0)
+                indent--;
+        } else if(c->ch != _T('>') && indent >= c->contents_indent) {
+            indent -= c->contents_indent;
+        } else {
+            break;
+        }
+        n_parents++;
+    }
+    *p_off = off;
+    *p_indent = indent;
+    *p_total = total;
+    return n_parents;
+}
+
+/* Read a nonblank line in the opener's containers without interpreting its
+ * contents as Markdown. A missing quote prefix or list indent ends the scan. */
+static int
+md_math_line(MD_CTX* ctx, OFF beg, MD_LINE* line, OFF* next)
+{
+    OFF off;
+    unsigned total, indent;
+
+    indent = md_line_indentation(ctx, 0, beg, &off);
+    total = indent;
+    if(md_match_container_prefix(ctx, &off, &indent, &total) != ctx->n_containers)
+        return false;
+    line->beg = off;
+    while(off < ctx->size && !ISNEWLINE(off))
+        off++;
+    line->end = off;
+    while(line->end > line->beg && ISBLANK(line->end-1))
+        line->end--;
+    if(off < ctx->size && CH(off) == _T('\r'))
+        off++;
+    if(off < ctx->size && CH(off) == _T('\n'))
+        off++;
+    *next = off;
+    return line->beg < line->end;
+}
+
+/* Only reserve complete, standalone display equations. The inline parser still
+ * owns delimiter resolution and emits the existing LATEXMATH_DISPLAY span. */
+static OFF
+md_display_math_end(MD_CTX* ctx, OFF beg, int continued_paragraph)
+{
+    OFF off = beg + 2, next, end = 0;
+    CHAR close;
+    MD_LINE line, paragraph;
+    MD_MARK code_open, code_close;
+    OFF code_closers[CODESPAN_MARK_MAXLEN] = { 0 };
+    int scanned_code = false;
+    int scanned_paragraph = false;
+    OFF scan;
+
+    if(beg + 1 >= ctx->size)
+        return 0;
+    if(CH(beg) == _T('\\') && CH(beg+1) == _T('['))
+        close = _T(']');
+    else if(CH(beg) == _T('$') && CH(beg+1) == _T('$'))
+        close = _T('$');
+    else
+        return 0;
+
+    while(off < ctx->size && ISBLANK(off))
+        off++;
+    if(off == ctx->size || !ISNEWLINE(off))
+        return 0;
+    if(CH(off) == _T('\r'))
+        off++;
+    if(off < ctx->size && CH(off) == _T('\n'))
+        off++;
+
+    paragraph.beg = beg;
+    if(continued_paragraph && ctx->current_block != NULL &&
+       ctx->current_block->type == MD_BLOCK_P)
+        paragraph.beg = ((MD_LINE*)(ctx->current_block + 1))[0].beg;
+    /* An earlier confirmed equation cannot be crossed by a code span. */
+    paragraph.beg = MAX(paragraph.beg, ctx->display_math_end);
+    paragraph.end = off;
+    while(off < ctx->size && md_math_line(ctx, off, &line, &next)) {
+        paragraph.end = line.end;
+        for(scan = line.beg; end == 0 && scan < line.end; scan++) {
+            if(CH(scan) == _T('\\') && scan+1 < line.end && ISPUNCT(scan+1)) {
+                if(CH(scan+1) == _T('[') || CH(scan+1) == _T(']')) {
+                    if(close == _T(']') && CH(scan+1) == close)
+                        end = scan + 2;
+                    else
+                        return 0; /* Leave competing math delimiters to the inline parser. */
+                }
+                scan++;
+            } else if(close == _T('$') && CH(scan) == _T('$')) {
+                OFF run = scan;
+                while(scan < line.end && CH(scan) == _T('$'))
+                    scan++;
+                if(scan - run >= 2) {
+                    if(scan - run == 2 && (scan == line.end ||
+                       ISUNICODEWHITESPACE(scan) || ISUNICODEPUNCT(scan)))
+                        end = scan;
+                    else
+                        return 0;
+                }
+                scan--;
+            }
+        }
+        if(end != 0)
+            break;
+        off = next;
+    }
+    if(end == 0)
+        return 0;
+
+    /* Reuse MD4C's exact-backtick-run matching. A code span may begin in the
+     * preceding prose and close after the equation. Escaped backticks do not
+     * open code, and an unmatched run remains ordinary text. */
+    off = paragraph.beg;
+    while(off < beg) {
+        if(CH(off) == _T('`')) {
+            /* Only a backtick requires looking past the math closer. */
+            if(!scanned_paragraph) {
+                while(next < ctx->size && md_math_line(ctx, next, &line, &next))
+                    paragraph.end = line.end;
+                scanned_paragraph = true;
+            }
+            if(md_is_code_span(ctx, &paragraph, 1, off, &code_open, &code_close,
+                               code_closers, &scanned_code)) {
+                if(code_close.end > beg)
+                    return 0;
+                off = code_close.end;
+            } else {
+                off = code_open.end;
+            }
+        } else if(CH(off) == _T('\\') && off+1 < paragraph.end && ISPUNCT(off+1)) {
+            off += 2;
+        } else {
+            off++;
+        }
+    }
+    return end;
+}
+
 /* Analyze type of the line and find some its properties. This serves as a
  * main input for determining type and boundaries of a block. */
 static int
@@ -6612,38 +6923,9 @@ md_analyze_line(MD_CTX* ctx, OFF beg, OFF* p_end,
 
     line->indent = md_line_indentation(ctx, total_indent, off, &off);
     total_indent += line->indent;
-    line->beg = off;
     line->enforce_new_block = false;
-
-    /* Given the indentation and block quote marks '>', determine how many of
-     * the current containers are our parents. */
-    while(n_parents < ctx->n_containers) {
-        MD_CONTAINER* c = &ctx->containers[n_parents];
-
-        if(c->ch == _T('>')  &&  line->indent < ctx->code_indent_offset  &&
-            off < ctx->size  &&  CH(off) == _T('>'))
-        {
-            /* Block quote mark. */
-            off++;
-            total_indent++;
-            line->indent = md_line_indentation(ctx, total_indent, off, &off);
-            total_indent += line->indent;
-
-            /* The optional 1st space after '>' is part of the block quote mark. */
-            if(line->indent > 0)
-                line->indent--;
-
-            line->beg = off;
-
-        } else if(c->ch != _T('>')  &&  line->indent >= c->contents_indent) {
-            /* List. */
-            line->indent -= c->contents_indent;
-        } else {
-            break;
-        }
-
-        n_parents++;
-    }
+    n_parents = md_match_container_prefix(ctx, &off, &line->indent, &total_indent);
+    line->beg = off;
 
     if(off >= ctx->size  ||  ISNEWLINE(off)) {
         /* Blank line does not need any real indentation to be nested inside
@@ -6775,6 +7057,26 @@ md_analyze_line(MD_CTX* ctx, OFF beg, OFF* p_end,
             }
     #endif
             ctx->last_line_has_list_loosening_effect = false;
+        }
+
+        /* Keep complete display math in one paragraph before block syntax
+         * such as '=' or '---' can split its opening and closing delimiters. */
+        if((ctx->parser.flags & MD_FLAG_LATEXMATHSPANS) &&
+           n_parents + n_brothers + n_children == ctx->n_containers)
+        {
+            if(off >= ctx->display_math_end &&
+               line->indent < 4 &&
+               (pivot_line->type == MD_LINE_BLANK || pivot_line->type == MD_LINE_TEXT))
+            {
+                OFF end = md_display_math_end(ctx, off,
+                        pivot_line->type == MD_LINE_TEXT && n_brothers + n_children == 0);
+                if(end != 0)
+                    ctx->display_math_end = end;
+            }
+            if(off < ctx->display_math_end) {
+                line->type = MD_LINE_TEXT;
+                break;
+            }
         }
 
         /* Check whether we are Setext underline. */

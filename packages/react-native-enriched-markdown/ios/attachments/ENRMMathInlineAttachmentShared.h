@@ -17,6 +17,7 @@
   BOOL _parseFailed;
   NSString *_parseMessage;
 }
+@property (nonatomic, assign, readwrite) BOOL overflowsLine;
 @end
 
 #endif

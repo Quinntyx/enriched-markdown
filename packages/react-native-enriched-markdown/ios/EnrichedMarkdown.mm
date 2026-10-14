@@ -1027,6 +1027,7 @@ static char kENRMSegmentFadeAnimatorKey;
 
 - (void)configureTextView:(EnrichedMarkdownInternalText *)view withRenderedSegment:(ENRMRenderResult *)segment
 {
+  view.dynamicProps = _dynamicBlockProps;
   view.spoilerOverlay = _spoilerOverlay;
   view.allowTrailingMargin = _allowTrailingMargin;
   view.lastElementMarginBottom = segment.lastElementMarginBottom;
