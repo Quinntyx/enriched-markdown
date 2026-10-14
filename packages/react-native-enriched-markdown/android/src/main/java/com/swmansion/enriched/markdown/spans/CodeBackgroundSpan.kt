@@ -5,6 +5,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.text.Spanned
+import android.text.TextPaint
 import android.text.style.LineBackgroundSpan
 import com.swmansion.enriched.markdown.spoiler.isConcealedBySpoiler
 import com.swmansion.enriched.markdown.styles.StyleConfig
@@ -31,6 +32,7 @@ class CodeBackgroundSpan(
   // Reusable drawing objects per instance
   private val rect = RectF()
   private val path = Path()
+  private val metricsPaint = TextPaint()
 
   override fun drawBackground(
     canvas: Canvas,
@@ -67,7 +69,13 @@ class CodeBackgroundSpan(
       val isLast = rangeEnd <= end
 
       // 2. Calculate coordinates
-      val finalBottom = adjustBottomForMargin(text, end, bottom)
+      metricsPaint.set(p)
+      val codeSpans = text.getSpans(rangeStart, rangeStart + 1, CodeSpan::class.java)
+      codeSpans.firstOrNull()?.updateMeasureState(metricsPaint)
+      val metrics = metricsPaint.fontMetrics
+      val padding = metricsPaint.textSize * 0.1f
+      val chipTop = baseline + metrics.ascent - padding
+      val chipBottom = baseline + metrics.descent + padding
       val leadingMargin = InlineBackgroundGeometry.leadingMarginAt(text, start)
       val startX =
         if (isFirst) {
@@ -79,10 +87,10 @@ class CodeBackgroundSpan(
         if (isLast) {
           InlineBackgroundGeometry.horizontalOffset(text, start, end, rangeEnd, p, leadingMargin) + left
         } else {
-          right.toFloat()
+          InlineBackgroundGeometry.horizontalOffset(text, start, end, end, p, leadingMargin) + left
         }
 
-      rect.set(min(startX, endX), top.toFloat(), max(startX, endX), finalBottom.toFloat())
+      rect.set(min(startX, endX), chipTop, max(startX, endX), chipBottom)
 
       // 3. Apply Style
       val codeStyle = styleConfig.codeStyle
@@ -187,19 +195,5 @@ class CodeBackgroundSpan(
     else -> {
       floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f)
     }
-  }
-
-  private fun adjustBottomForMargin(
-    text: Spanned,
-    lineEnd: Int,
-    bottom: Int,
-  ): Int {
-    if (lineEnd <= 0 || lineEnd > text.length || text[lineEnd - 1] != '\n') return bottom
-    val marginSpans = text.getSpans(lineEnd - 1, lineEnd, MarginBottomSpan::class.java)
-    var adjusted = bottom
-    for (span in marginSpans) {
-      if (text.getSpanEnd(span) == lineEnd) adjusted -= span.marginBottom.toInt()
-    }
-    return adjusted
   }
 }

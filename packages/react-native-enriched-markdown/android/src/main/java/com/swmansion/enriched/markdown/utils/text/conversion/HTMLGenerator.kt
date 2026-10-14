@@ -8,6 +8,7 @@ import android.text.style.UnderlineSpan
 import com.swmansion.enriched.markdown.spans.BaseListSpan
 import com.swmansion.enriched.markdown.spans.BlockquoteSpan
 import com.swmansion.enriched.markdown.spans.CodeBlockSpan
+import com.swmansion.enriched.markdown.spans.CodePaddingSpan
 import com.swmansion.enriched.markdown.spans.CodeSpan
 import com.swmansion.enriched.markdown.spans.EmphasisSpan
 import com.swmansion.enriched.markdown.spans.HeadingSpan
@@ -753,6 +754,12 @@ object HTMLGenerator {
     styles: CachedStyles,
     isCodeBlock: Boolean,
   ) {
+    if (text.getSpans(start, end, CodePaddingSpan::class.java).any {
+        text.getSpanStart(it) <= start && text.getSpanEnd(it) >= end
+      }
+    ) {
+      return
+    }
     val strongSpans = text.getSpans(start, end, StrongSpan::class.java)
     val styleSpans = text.getSpans(start, end, StyleSpan::class.java)
     val emphasisSpans = text.getSpans(start, end, EmphasisSpan::class.java)

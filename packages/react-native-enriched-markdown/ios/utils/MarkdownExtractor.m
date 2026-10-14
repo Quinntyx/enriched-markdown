@@ -297,6 +297,9 @@ NSString *_Nullable extractMarkdownFromAttributedString(NSAttributedString *attr
                           state.listDepth = -1;
                         }
 
+                        if ([attrs[CodePaddingAttributeName] boolValue])
+                          return;
+
                         // Inline formatting
                         BOOL isBold, isItalic, isMonospace;
                         BOOL recognizedLink = [attrs[ENRMRecognizedLinkAttributeName] boolValue];

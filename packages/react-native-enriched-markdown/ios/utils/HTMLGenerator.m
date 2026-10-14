@@ -459,6 +459,8 @@ static void generateInlineHTML(NSMutableString *html, NSAttributedString *attrib
       enumerateAttributesInRange:range
                          options:0
                       usingBlock:^(NSDictionary<NSAttributedStringKey, id> *attrs, NSRange attrRange, BOOL *stop) {
+                        if ([attrs[CodePaddingAttributeName] boolValue])
+                          return;
                         NSString *text = [string substringWithRange:attrRange];
 
                         if ([text isEqualToString:@"\n"])
