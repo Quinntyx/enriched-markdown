@@ -192,7 +192,8 @@ NSString *_Nullable extractMarkdownFromAttributedString(NSAttributedString *attr
                         if ([attachment isKindOfClass:[ENRMMathInlineAttachment class]]) {
                           ENRMMathInlineAttachment *math = (ENRMMathInlineAttachment *)attachment;
                           if (math.latex.length > 0) {
-                            [result appendFormat:@"$%@$", math.latex];
+                            NSString *delimiter = math.displayMode ? @"$$" : @"$";
+                            [result appendFormat:@"%@%@%@", delimiter, math.latex, delimiter];
                           }
                           return;
                         }

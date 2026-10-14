@@ -1,6 +1,10 @@
 #import "PasteboardUtils.h"
 #import "CodeBackground.h"
+#import "ENRMFeatureFlags.h"
 #import "ENRMImageAttachment.h"
+#if ENRICHED_MARKDOWN_MATH
+#import "ENRMMathInlineAttachment.h"
+#endif
 #import "ENRMLinkPillText.h"
 #import "HTMLGenerator.h"
 #import "MarkdownExtractor.h"
@@ -80,6 +84,15 @@ static NSString *canonicalClipboardText(NSAttributedString *text, StyleConfig *c
                               return;
                             range = linkRange;
                           }
+#if ENRICHED_MARKDOWN_MATH
+                          id attachment = attributes[NSAttachmentAttributeName];
+                          if (![replacement isKindOfClass:NSString.class] &&
+                              [attachment isKindOfClass:ENRMMathInlineAttachment.class]) {
+                            ENRMMathInlineAttachment *math = attachment;
+                            NSString *delimiter = math.displayMode ? @"$$" : @"$";
+                            replacement = [NSString stringWithFormat:@"%@%@%@", delimiter, math.latex, delimiter];
+                          }
+#endif
                           if (!replacement && [attributes[CodePaddingAttributeName] boolValue])
                             replacement = @"";
                           if ([replacement isKindOfClass:NSString.class]) {

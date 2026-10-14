@@ -214,6 +214,59 @@ static NSString *escapeHTML(NSString *text)
   return escaped;
 }
 
+static void appendEscapedInlineHTML(NSMutableString *output, NSString *text)
+{
+  NSUInteger length = text.length;
+  if (length == 0)
+    return;
+
+  for (NSUInteger i = 0; i < length; i++) {
+    unichar c = [text characterAtIndex:i];
+    switch (c) {
+      case '\n':
+      case '\r':
+      case 0x2028:
+      case 0x2029:
+        [output appendString:@"<br>"];
+        break;
+      case '&':
+        [output appendString:@"&amp;"];
+        break;
+      case '<':
+        [output appendString:@"&lt;"];
+        break;
+      case '>':
+        [output appendString:@"&gt;"];
+        break;
+      case '"':
+        [output appendString:@"&quot;"];
+        break;
+      case '\'':
+        [output appendString:@"&#39;"];
+        break;
+      default:
+        [output appendFormat:@"%C", c];
+        break;
+    }
+  }
+}
+
+static NSString *escapeInlineHTML(NSString *text)
+{
+  static NSCharacterSet *escapeChars = nil;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken,
+                ^{ escapeChars = [NSCharacterSet characterSetWithCharactersInString:@"&<>\"'\n\r\u2028\u2029"]; });
+
+  if ([text rangeOfCharacterFromSet:escapeChars].location == NSNotFound) {
+    return text;
+  }
+
+  NSMutableString *escaped = [NSMutableString stringWithCapacity:text.length + 16];
+  appendEscapedInlineHTML(escaped, text);
+  return escaped;
+}
+
 #pragma mark - Font Weight Conversion
 
 static NSString *fontWeightToCSS(NSString *fontWeight)
@@ -493,12 +546,15 @@ static void generateInlineHTML(NSMutableString *html, NSAttributedString *attrib
                           } else if ([attachment isKindOfClass:[ENRMMathInlineAttachment class]]) {
                             ENRMMathInlineAttachment *math = (ENRMMathInlineAttachment *)attachment;
                             if (math.latex.length > 0) {
+                              NSString *delimiter = math.displayMode ? @"$$" : @"$";
+                              NSString *source =
+                                  [NSString stringWithFormat:@"%@%@%@", delimiter, math.latex, delimiter];
                               [html appendFormat:
                                         @"<code style=\"background-color: %@; color: %@; "
                                         @"padding: %.0fpx %.0fpx; border-radius: %.0fpx; "
                                         @"font-size: 1em; font-family: Menlo, Monaco, Consolas, monospace;\">%@</code>",
                                         styles.codeBackgroundColor, styles.codeColor, kCodePadding, kCodePadding * 2,
-                                        kCodeBorderRadius, escapeHTML(math.latex)];
+                                        kCodeBorderRadius, escapeHTML(source)];
                             }
 #endif
                           }
@@ -586,7 +642,7 @@ static void generateInlineHTML(NSMutableString *html, NSAttributedString *attrib
                           }
                         }
 
-                        [html appendString:escapeHTML(text)];
+                        [html appendString:isCodeBlock ? escapeHTML(text) : escapeInlineHTML(text)];
 
                         // Reverse order
                         if ([underline integerValue] > 0 && !linkAttr)

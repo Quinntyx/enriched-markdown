@@ -115,7 +115,7 @@ object MarkdownExtractor {
 
       val mathLatex = extractMathLatex(spannable, segmentStart, segmentEnd)
       if (mathLatex != null) {
-        result.append("$$mathLatex$")
+        result.append(mathLatex)
         return true
       }
     }
@@ -414,7 +414,10 @@ object MarkdownExtractor {
       val spans = spannable.getSpans(start, end, mathInlineSpanClass)
       if (spans.isEmpty()) return null
       val latexField = mathInlineSpanClass.getDeclaredField("latex").apply { isAccessible = true }
-      latexField.get(spans[0]) as? String
+      val latex = latexField.get(spans[0]) as? String ?: return null
+      val displayMode = mathInlineSpanClass.getDeclaredField("displayMode").apply { isAccessible = true }.getBoolean(spans[0])
+      val delimiter = if (displayMode) "\$\$" else "\$"
+      "$delimiter$latex$delimiter"
     } catch (_: Exception) {
       null
     }
