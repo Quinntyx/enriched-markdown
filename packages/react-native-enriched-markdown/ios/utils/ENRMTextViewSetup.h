@@ -30,16 +30,50 @@ static inline void ENRMDetachLayoutManager(ENRMPlatformTextView *textView)
   }
 }
 
+static inline BOOL ENRMTextLayoutHasSoftWrap(NSLayoutManager *layoutManager, NSAttributedString *text)
+{
+  NSUInteger glyphCount = [layoutManager numberOfGlyphs];
+  if (glyphCount == 0) {
+    return NO;
+  }
+
+  NSString *string = text.string;
+  NSUInteger glyphIndex = 0;
+  while (glyphIndex < glyphCount) {
+    NSRange lineGlyphRange;
+    [layoutManager lineFragmentRectForGlyphAtIndex:glyphIndex effectiveRange:&lineGlyphRange];
+
+    NSUInteger nextGlyphIndex = NSMaxRange(lineGlyphRange);
+    if (nextGlyphIndex < glyphCount) {
+      NSUInteger nextCharacterIndex = [layoutManager characterIndexForGlyphAtIndex:nextGlyphIndex];
+      BOOL hardBreak = NO;
+      if (nextCharacterIndex > 0 && nextCharacterIndex <= string.length) {
+        unichar previousCharacter = [string characterAtIndex:nextCharacterIndex - 1];
+        hardBreak = previousCharacter == '\n' || previousCharacter == '\r' || previousCharacter == 0x2028 ||
+                    previousCharacter == 0x2029;
+      }
+      if (!hardBreak) {
+        return YES;
+      }
+    }
+
+    if (nextGlyphIndex <= glyphIndex) {
+      break;
+    }
+    glyphIndex = nextGlyphIndex;
+  }
+
+  return NO;
+}
+
 /// Turns a raw TextKit layout pass into the final measured size. Shared by
 /// the view-backed path (`ENRMMeasureMarkdownText`) and the view-free path
 /// (`ENRMMeasureMarkdownViewFree`) so both measure with one algorithm.
 ///
 /// Steps, in order:
-/// - Multiline pin: if the first line fragment doesn't span all glyphs the
-///   text wrapped, and returning the tight usedRect width would let flexShrink
+/// - Soft-wrap pin: returning a tight usedRect width after wrapping would let flexShrink
 ///   narrow the view below maxWidth, re-wrapping at the narrower width and
-///   mismatching the measured height — so multiline content reports maxWidth,
-///   while single-line content keeps its tight width for shrink-to-fit.
+///   mismatching the measured height. Explicit line breaks retain their tight width.
 /// - Optionally subtract the extra line fragment (iOS counts a trailing
 ///   newline's empty line fragment into usedRect). Read-only markdown passes
 ///   YES; text input passes NO so trailing newlines keep a blank line (RN Text
@@ -58,13 +92,8 @@ static inline CGSize ENRMFinalizeMeasuredTextSize(ENRMTextLayoutResult layout, N
   CGFloat measuredWidth = layout.usedRect.size.width;
   CGFloat measuredHeight = layout.usedRect.size.height;
 
-  NSUInteger glyphCount = [layoutManager numberOfGlyphs];
-  if (glyphCount > 0) {
-    NSRange firstLineRange;
-    [layoutManager lineFragmentRectForGlyphAtIndex:0 effectiveRange:&firstLineRange];
-    if (NSMaxRange(firstLineRange) < glyphCount) {
-      measuredWidth = maxWidth;
-    }
+  if (ENRMTextLayoutHasSoftWrap(layoutManager, text)) {
+    measuredWidth = maxWidth;
   }
 
   if (subtractExtraLineFragment && !CGRectIsEmpty(layout.extraLineFragmentRect)) {
