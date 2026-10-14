@@ -39,6 +39,13 @@ int main() {
   auto inlineDollar = parser.parse("Before $x^2$ after.");
   assert(inlineDollar->children.size() == 1);
   assert(count(inlineDollar, NodeType::LatexMathInline) == 1);
+  auto citations =
+      parser.parse("Citation &#91;1&#93;, &#40;unfinished, &amp; and &#x1F600;.\n\n[1]: https://example.test");
+  assert(citations->children[0]->children[0]->content == "Citation [1], (unfinished, & and \xF0\x9F\x98\x80.");
+  assert(count(citations, NodeType::LatexMathDisplay) == 0);
+  assert(count(citations, NodeType::Link) == 0);
+  auto codeReference = parser.parse("`&#91;` and &#0;");
+  assert(codeReference->children[0]->children[0]->children[0]->content == "&#91;");
   auto table = parser.parse("| Formula | Notes |\n| --- | --- |\n| $|x|$ | Norm |\n| \\(|y|\\) | Other |\n");
   assert(count(table, NodeType::TableCell) == 4);
   assert(count(table, NodeType::LatexMathInline) == 2);

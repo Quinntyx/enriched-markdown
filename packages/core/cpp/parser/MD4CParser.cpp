@@ -1,12 +1,53 @@
 #include "MD4CParser.hpp"
 #include "../md4c/md4c.h"
 #include <cctype>
+#include <charconv>
 #include <cstring>
 #include <vector>
 
 namespace Markdown {
 
 namespace {
+// Decode references after MD4C has classified syntax, so escaped delimiters stay text.
+void appendCharacterReference(std::string &output, const char *text, size_t size) {
+  const std::string reference(text, size);
+  for (const auto &entry : {std::pair{"&amp;", "&"}, std::pair{"&lt;", "<"}, std::pair{"&gt;", ">"},
+                            std::pair{"&quot;", "\""}, std::pair{"&apos;", "'"}, std::pair{"&nbsp;", "\xC2\xA0"}}) {
+    if (reference == entry.first) {
+      output += entry.second;
+      return;
+    }
+  }
+  if (size < 4 || reference[1] != '#') {
+    output += reference;
+    return;
+  }
+  const bool hex = reference[2] == 'x' || reference[2] == 'X';
+  const char *begin = text + (hex ? 3 : 2);
+  const char *end = text + size - 1;
+  unsigned int codepoint = 0;
+  const auto parsed = std::from_chars(begin, end, codepoint, hex ? 16 : 10);
+  if (parsed.ec != std::errc{} || parsed.ptr != end || codepoint == 0 || codepoint > 0x10FFFF ||
+      (codepoint >= 0xD800 && codepoint <= 0xDFFF)) {
+    codepoint = 0xFFFD;
+  }
+  if (codepoint < 0x80) {
+    output += static_cast<char>(codepoint);
+  } else if (codepoint < 0x800) {
+    output += static_cast<char>(0xC0 | (codepoint >> 6));
+    output += static_cast<char>(0x80 | (codepoint & 0x3F));
+  } else if (codepoint < 0x10000) {
+    output += static_cast<char>(0xE0 | (codepoint >> 12));
+    output += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+    output += static_cast<char>(0x80 | (codepoint & 0x3F));
+  } else {
+    output += static_cast<char>(0xF0 | (codepoint >> 18));
+    output += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
+    output += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+    output += static_cast<char>(0x80 | (codepoint & 0x3F));
+  }
+}
+
 struct HtmlTag {
   std::string name;
   std::unordered_map<std::string, std::string> attributes;
@@ -423,6 +464,11 @@ public:
       if (impl->inHtmlBlock) {
         impl->htmlBlockContent.append(text, size);
       }
+      return 0;
+    }
+
+    if (type == MD_TEXT_ENTITY) {
+      appendCharacterReference(impl->currentText, text, size);
       return 0;
     }
 
