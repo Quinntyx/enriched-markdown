@@ -172,7 +172,7 @@ EnrichedMarkdownText(markdown = content, selectable = false)
 ```
 
 :::note
-A document renders into a single text view, so a selection can run across the whole document - headings, quotes, and code blocks included. It cannot span **two** `EnrichedMarkdownText` composables, though: each one is its own selection scope.
+A selection can run across headings, paragraphs, lists, and quotes, which share one text view. It stops at tables, and at top-level code blocks set to [scroll](#codeblocklayout), which are views of their own - long-press one to copy it. Nor can a selection span **two** `EnrichedMarkdownText` composables: each one is its own selection scope.
 :::
 
 #### What copying produces {#copying}
@@ -185,6 +185,21 @@ The selection menu also carries two items of the library's own, both on by defau
 - **Copy Image URL** appears when the selection contains images with `http(s)` URLs, and copies them one per line.
 
 Neither can be hidden or relabeled from the Compose API yet - the view underneath takes a config for them, but `EnrichedMarkdownText` does not pass one through. See the [roadmap](/misc/roadmap) and [Copy options](/user-experience/copy-options).
+
+### `codeBlockLayout`
+
+Whether fenced code blocks wrap long lines or scroll them. With `CodeBlockLayout.Wrapping` a long line wraps, and the code is part of the text selection like any other text.
+
+`CodeBlockLayout.Scrollable` keeps lines intact: a code block at the top level of the document scrolls horizontally inside its box instead. Each such block is a view of its own, so a selection stops at it - long-press it to copy its code, or the code as fenced Markdown. A code block inside a list item or a quote wraps either way. See [Code blocks](/android/api-reference/element-structure#code-blocks).
+
+<PropInfo type="CodeBlockLayout" default="CodeBlockLayout.Wrapping" />
+
+```kotlin
+EnrichedMarkdownText(
+  markdown = content,
+  codeBlockLayout = CodeBlockLayout.Scrollable,
+)
+```
 
 ### `imageRequestHeaders`
 

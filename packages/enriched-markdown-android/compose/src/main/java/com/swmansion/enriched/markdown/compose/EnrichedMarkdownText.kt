@@ -16,6 +16,7 @@ import com.swmansion.enriched.markdown.spoiler.SpoilerOverlay
 import com.swmansion.enriched.markdown.styles.StyleConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.swmansion.enriched.markdown.CodeBlockLayout as CodeBlockLayoutInternal
 import com.swmansion.enriched.markdown.EnrichedMarkdown as NativeMarkdownView
 import com.swmansion.enriched.markdown.MarkdownOptions as MarkdownOptionsInternal
 import com.swmansion.enriched.markdown.TaskListItemToggle as TaskListItemToggleInternal
@@ -23,6 +24,8 @@ import com.swmansion.enriched.markdown.plugin.MarkdownPlugin as MarkdownPluginIn
 import com.swmansion.enriched.markdown.plugin.PluginEvent as PluginEventInternal
 
 typealias MarkdownOptions = MarkdownOptionsInternal
+
+typealias CodeBlockLayout = CodeBlockLayoutInternal
 
 typealias TaskListItemToggle = TaskListItemToggleInternal
 
@@ -38,6 +41,10 @@ typealias MarkdownPlugin = MarkdownPluginInternal
  *
  * [options] selects the optional syntax extensions. Math is not one of them: enabling a math plugin
  * turns it on.
+ *
+ * [codeBlockLayout] set to [CodeBlockLayout.Scrollable] keeps long code lines intact and scrolls
+ * them horizontally, for code blocks at the top level of the document. Those blocks leave the text
+ * selection and copy with a long-press instead. Blocks inside a list item or a quote always wrap.
  *
  * [spoilerOverlay] picks how `||spoiler||` text is concealed until it is tapped. The overlays are
  * rebuilt only when it changes by `==`, so pass a data class or object, or `remember` it.
@@ -61,6 +68,7 @@ fun EnrichedMarkdownText(
   style: MarkdownStyle = MarkdownTheme.style,
   options: MarkdownOptions = MarkdownOptions.Default,
   selectable: Boolean = true,
+  codeBlockLayout: CodeBlockLayout = CodeBlockLayout.Wrapping,
   imageRequestHeaders: Map<String, String> = emptyMap(),
   onLinkClick: (String) -> Unit = {},
   onLinkLongClick: (String) -> Unit = {},
@@ -109,6 +117,7 @@ fun EnrichedMarkdownText(
         setMarkdownStyle(styleConfig)
         setOptions(options)
         setIsSelectable(selectable)
+        setCodeBlockLayout(codeBlockLayout)
         setImageRequestHeaders(imageRequestHeaders)
         setMarkdownContent(markdown)
       }
@@ -125,6 +134,7 @@ fun EnrichedMarkdownText(
       view.setMarkdownStyle(styleConfig)
       view.setOptions(options)
       view.setIsSelectable(selectable)
+      view.setCodeBlockLayout(codeBlockLayout)
       view.setImageRequestHeaders(imageRequestHeaders)
       view.setMarkdownContent(markdown)
     },

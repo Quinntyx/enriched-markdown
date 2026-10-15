@@ -9,12 +9,14 @@ import android.os.Looper
 import android.util.Log
 import android.view.View
 import androidx.annotation.VisibleForTesting
+import com.swmansion.enriched.markdown.parser.MarkdownASTNode
 import com.swmansion.enriched.markdown.parser.Parser
 import com.swmansion.enriched.markdown.plugin.InternalPluginApi
 import com.swmansion.enriched.markdown.plugin.MarkdownPlugin
 import com.swmansion.enriched.markdown.plugin.PluginEvent
 import com.swmansion.enriched.markdown.plugin.PluginEventSink
 import com.swmansion.enriched.markdown.plugin.PluginSnapshot
+import com.swmansion.enriched.markdown.segments.CodeBlockContainerView
 import com.swmansion.enriched.markdown.segments.ContainerNodeView
 import com.swmansion.enriched.markdown.segments.MarkdownSegmentRenderer
 import com.swmansion.enriched.markdown.segments.RenderedSegment
@@ -60,6 +62,10 @@ class EnrichedMarkdown(
     get() = TaskListToggleUtils.applyCheckedStates(baseMarkdown, taskListToggles)
 
   var options: MarkdownOptions = MarkdownOptions.Default
+    private set
+
+  /** Whether fenced code blocks wrap long lines or scroll them. */
+  var codeBlockLayout: CodeBlockLayout = CodeBlockLayout.Wrapping
     private set
 
   /** How unrevealed `||spoiler||` text is concealed. */
@@ -157,6 +163,13 @@ class EnrichedMarkdown(
   fun setOptions(options: MarkdownOptions) {
     if (this.options == options) return
     this.options = options
+    scheduleRenderIfNeeded()
+  }
+
+  /** A switch re-splits the document, and the changed segments' signatures rebuild their views. */
+  fun setCodeBlockLayout(layout: CodeBlockLayout) {
+    if (codeBlockLayout == layout) return
+    codeBlockLayout = layout
     scheduleRenderIfNeeded()
   }
 
@@ -295,6 +308,9 @@ class EnrichedMarkdown(
     segmentViews.filterIsInstance<TableContainerView>().forEach {
       it.selectionMenuConfig = config
     }
+    segmentViews.filterIsInstance<CodeBlockContainerView>().forEach {
+      it.selectionMenuConfig = config
+    }
   }
 
   private fun applySelectionColorsToSegments() {
@@ -338,12 +354,33 @@ class EnrichedMarkdown(
     }
   }
 
-  private fun scheduleRender() {
+  /**
+   * What the render thread does with a parsed document, over this view's style, plugins and code
+   * block layout as they are when it is called, so a render keeps the state it was scheduled with.
+   */
+  @VisibleForTesting
+  internal fun segmentRenderer(): (MarkdownASTNode) -> List<RenderedSegment> {
     val style = markdownStyle
-    val markdown = currentMarkdown
     val plugins = pluginSnapshot
-    val parserFlags = plugins.adjustParserFlags(options.toParserFlags())
+    val codeBlockLayout = codeBlockLayout
+    val imageRequestHeaders = imageRequestHeaders
     val onPluginEvent = renderPluginEventSink()
+    return { ast ->
+      MarkdownSegmentRenderer.render(
+        splitASTIntoSegments(ast, plugins, codeBlockLayout),
+        style,
+        context,
+        imageRequestHeaders,
+        onPluginEvent = onPluginEvent,
+        plugins = plugins,
+      )
+    }
+  }
+
+  private fun scheduleRender() {
+    val markdown = currentMarkdown
+    val parserFlags = pluginSnapshot.adjustParserFlags(options.toParserFlags())
+    val renderSegments = segmentRenderer()
 
     val renderId = ++currentRenderId
     // Segments rendered while detached are superseded by this render.
@@ -370,16 +407,7 @@ class EnrichedMarkdown(
 
         if (renderId != currentRenderId) return@submit
 
-        val segments = splitASTIntoSegments(ast, plugins)
-        val renderedSegments =
-          MarkdownSegmentRenderer.render(
-            segments,
-            style,
-            context,
-            imageRequestHeaders,
-            onPluginEvent = onPluginEvent,
-            plugins = plugins,
-          )
+        val renderedSegments = renderSegments(ast)
 
         if (renderId != currentRenderId) return@submit
 
@@ -516,6 +544,7 @@ class EnrichedMarkdown(
       when (segment) {
         is RenderedSegment.Text -> view is EnrichedMarkdownInternalText
         is RenderedSegment.Table -> view is TableContainerView
+        is RenderedSegment.CodeBlock -> view is CodeBlockContainerView
         is RenderedSegment.Custom<*> -> segment.matchesView(view)
       }
 
@@ -523,6 +552,7 @@ class EnrichedMarkdown(
       when (segment) {
         is RenderedSegment.Text -> SegmentViewCreators.createTextView(segment, segmentViewConfig())
         is RenderedSegment.Table -> SegmentViewCreators.createTableView(segment, segmentViewConfig())
+        is RenderedSegment.CodeBlock -> SegmentViewCreators.createCodeBlockView(segment, segmentViewConfig())
         is RenderedSegment.Custom<*> -> segment.createView(segmentViewConfig())
       }
 
@@ -533,6 +563,7 @@ class EnrichedMarkdown(
       when (segment) {
         is RenderedSegment.Text -> SegmentViewCreators.updateTextView(view as EnrichedMarkdownInternalText, segment)
         is RenderedSegment.Table -> SegmentViewCreators.updateTableView(view as TableContainerView, segment, segmentViewConfig())
+        is RenderedSegment.CodeBlock -> SegmentViewCreators.updateCodeBlockView(view as CodeBlockContainerView, segment)
         is RenderedSegment.Custom<*> -> segment.updateView(view, segmentViewConfig())
       }
     }

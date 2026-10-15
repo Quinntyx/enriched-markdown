@@ -14,24 +14,24 @@ The renderer sorts every element into one of two kinds, and the distinction driv
 - **Block elements** occupy their own vertical space and carry their own font, color, and margins. A paragraph, a heading, a list, a quote, a code block.
 - **Inline elements** live inside a line of text and modify a run of it. Bold, italic, links, inline code. They inherit size and line height from the block they sit in and override only what makes them distinct - see [Style inheritance](/android/api-reference/style-properties#style-inheritance).
 
-The whole document renders into a **single native text view**, with block structure drawn by spans rather than by separate views. That is why a selection can run from the first heading to the last list item without interruption.
+Text renders into **native text views**, with block structure drawn by spans rather than by separate views. Consecutive headings, paragraphs, lists, and quotes share one text view, which is why a selection can run from the first heading to the last list item without interruption. Tables, and top-level code blocks set to scroll, are views of their own: a selection stops at them, and you copy them with a long-press instead.
 
 ### Block elements
 
-| Element           | Markdown                           | Notes                                                                                                       |
-| ----------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Heading           | `# H1` … `###### H6`               | Six levels, each styled independently                                                                       |
-| Paragraph         | Text separated by a blank line     |                                                                                                             |
-| Blockquote        | `> quoted`                         | Nests                                                                                                       |
-| Admonition        | `> [!NOTE]`                        | Needs `MarkdownOptions(admonitions = true)` - see [below](#admonitions)                                     |
-| Unordered list    | `- item`                           | Nests                                                                                                       |
-| Ordered list      | `1. item`                          | Nests                                                                                                       |
-| Task list         | `- [ ]` / `- [x]`                  | Tappable - see [`onTaskListItemPress`](/android/api-reference/enriched-markdown-text#ontasklistitempress)   |
-| Table             | GFM pipe table                     | Always enabled - see [below](#tables)                                                                       |
-| Fenced code block | ` ```kotlin `                      | Colored by language with `CodeHighlightPlugin` - see [Code highlighting](/android/guides/code-highlighting) |
-| Block image       | `![alt](url)` alone in a paragraph | See [below](#images-block-vs-inline)                                                                        |
-| Thematic break    | `---`                              |                                                                                                             |
-| Math block        | `$$...$$`                          | Needs `LatexMathPlugin` - see [Math](/android/guides/parser-extensions#math-is-not-an-option)               |
+| Element           | Markdown                           | Notes                                                                                                     |
+| ----------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Heading           | `# H1` … `###### H6`               | Six levels, each styled independently                                                                     |
+| Paragraph         | Text separated by a blank line     |                                                                                                           |
+| Blockquote        | `> quoted`                         | Nests                                                                                                     |
+| Admonition        | `> [!NOTE]`                        | Needs `MarkdownOptions(admonitions = true)` - see [below](#admonitions)                                   |
+| Unordered list    | `- item`                           | Nests                                                                                                     |
+| Ordered list      | `1. item`                          | Nests                                                                                                     |
+| Task list         | `- [ ]` / `- [x]`                  | Tappable - see [`onTaskListItemPress`](/android/api-reference/enriched-markdown-text#ontasklistitempress) |
+| Table             | GFM pipe table                     | Always enabled - see [below](#tables)                                                                     |
+| Fenced code block | ` ```kotlin `                      | Long lines wrap or scroll; colored by language with `CodeHighlightPlugin` - see [below](#code-blocks)     |
+| Block image       | `![alt](url)` alone in a paragraph | See [below](#images-block-vs-inline)                                                                      |
+| Thematic break    | `---`                              |                                                                                                           |
+| Math block        | `$$...$$`                          | Needs `LatexMathPlugin` - see [Math](/android/guides/parser-extensions#math-is-not-an-option)             |
 
 ### Inline elements
 
@@ -131,6 +131,19 @@ GFM pipe tables render as real views inside the text rather than as monospaced A
 - Cells take inline styling - bold, italic, inline code, strikethrough, and tappable links.
 
 Colors, borders, padding and the header row are all styled through the [`table`](/android/api-reference/style-properties#table) block.
+
+## Code blocks
+
+By default, a fenced code block wraps its long lines, and its code is part of the text selection like any other text.
+
+Pass [`codeBlockLayout = CodeBlockLayout.Scrollable`](/android/api-reference/enriched-markdown-text#codeblocklayout) to keep lines intact instead:
+
+- Lines never wrap. A block wider than the view **scrolls horizontally in place**, inside its box, without moving the rest of the document.
+- This applies to code blocks at the top level of the document. A code block inside a list item or a quote still wraps its lines.
+- Long-press a scrolling code block to copy its code, or to copy it as fenced Markdown. It is not part of the text selection.
+- The block splits the text around it into separate selections, as a table does. **Select all** then **Copy as Markdown** copies only the text up to the nearest block, rebuilt from what is shown rather than the document's original Markdown, and leaves the code out. Long-press the block to copy the code itself.
+
+In either layout the language label is parsed. To color code by it, add `CodeHighlightPlugin` - see [Code highlighting](/android/guides/code-highlighting).
 
 ## Images: block vs. inline
 
