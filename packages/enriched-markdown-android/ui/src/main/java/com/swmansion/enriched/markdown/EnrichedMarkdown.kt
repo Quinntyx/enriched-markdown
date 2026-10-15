@@ -9,8 +9,6 @@ import android.os.Looper
 import android.util.Log
 import android.view.View
 import androidx.annotation.VisibleForTesting
-import com.swmansion.enriched.markdown.parser.MarkdownASTNode
-import com.swmansion.enriched.markdown.parser.Md4cFlags
 import com.swmansion.enriched.markdown.parser.Parser
 import com.swmansion.enriched.markdown.plugin.InternalPluginApi
 import com.swmansion.enriched.markdown.plugin.MarkdownPlugin
@@ -61,7 +59,7 @@ class EnrichedMarkdown(
   val currentMarkdown: String
     get() = TaskListToggleUtils.applyCheckedStates(baseMarkdown, taskListToggles)
 
-  var md4cFlags: Md4cFlags = Md4cFlags.Default
+  var options: MarkdownOptions = MarkdownOptions.Default
     private set
 
   /** How unrevealed `||spoiler||` text is concealed. */
@@ -152,15 +150,13 @@ class EnrichedMarkdown(
     if (this.plugins == plugins) return
     this.plugins = plugins
     pluginSnapshot = PluginSnapshot.of(*plugins.toTypedArray())
-    // As with a style change, the AST - and so every signature - is unchanged, so the reconciler
-    // would otherwise keep views built by the previous plugins.
-    needsSegmentReset = true
+    needsSegmentReset = true // plugins change how nodes render, which the AST-based signatures don't capture
     scheduleRenderIfNeeded()
   }
 
-  fun setMd4cFlags(flags: Md4cFlags) {
-    if (md4cFlags == flags) return
-    md4cFlags = flags
+  fun setOptions(options: MarkdownOptions) {
+    if (this.options == options) return
+    this.options = options
     scheduleRenderIfNeeded()
   }
 
@@ -346,9 +342,8 @@ class EnrichedMarkdown(
     val style = markdownStyle
     val markdown = currentMarkdown
     val plugins = pluginSnapshot
+    val parserFlags = plugins.adjustParserFlags(options.toParserFlags())
     val onPluginEvent = renderPluginEventSink()
-
-    warnIfMathPluginMissing(plugins)
 
     val renderId = ++currentRenderId
     // Segments rendered while detached are superseded by this render.
@@ -368,7 +363,7 @@ class EnrichedMarkdown(
 
       try {
         val ast =
-          parser.parseMarkdown(markdown, md4cFlags) ?: run {
+          parser.parseMarkdown(markdown, parserFlags) ?: run {
             mainHandler.post { if (renderId == currentRenderId) landRenderedSegments(emptyList()) }
             return@submit
           }
@@ -513,24 +508,6 @@ class EnrichedMarkdown(
       onPluginEvent = pluginEventSink,
     )
 
-  /**
-   * Parsing latex without a plugin to render it is a dependency the app forgot, not a content
-   * error, so it is reported once per process rather than per view or per render.
-   */
-  private fun warnIfMathPluginMissing(plugins: PluginSnapshot) {
-    if (!md4cFlags.latexMath || missingMathPluginWarned) return
-    if (MATH_NODE_TYPES.any { it in plugins.nodeRenderers || it in plugins.blockSegments }) return
-
-    missingMathPluginWarned = true
-    Log.w(
-      TAG,
-      "Md4cFlags(latexMath = true) but no plugin renders math, so equations show as their raw " +
-        "source. Add the com.swmansion.enriched.markdown:math artifact, then in Compose wrap the " +
-        "content in a LatexMathPlugin { ... } scope, or on a View call " +
-        "setPlugins(listOf(LatexMathPlugin)).",
-    )
-  }
-
   private inner class RootFactory : SegmentViewFactory {
     override fun matchesKind(
       view: View,
@@ -564,11 +541,5 @@ class EnrichedMarkdown(
   companion object {
     private const val TAG = "EnrichedMarkdown"
     private const val MAX_REPORTED_PLUGIN_EVENTS = 256
-
-    private val MATH_NODE_TYPES =
-      listOf(MarkdownASTNode.NodeType.LatexMathInline, MarkdownASTNode.NodeType.LatexMathDisplay)
-
-    @Volatile
-    private var missingMathPluginWarned = false
   }
 }

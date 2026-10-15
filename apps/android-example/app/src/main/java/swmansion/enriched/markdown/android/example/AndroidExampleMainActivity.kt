@@ -41,7 +41,7 @@ class AndroidExampleMainActivity : ComponentActivity() {
 
       MaterialTheme {
         // Math and code highlighting ship as their own artifacts; this scope enables both for every
-        // EnrichedMarkdownText below. Math also needs `Md4cFlags(latexMath = true)` on the instance.
+        // EnrichedMarkdownText below, and LatexMathPlugin also turns on `$...$` / `$$...$$` parsing.
         MarkdownPlugins(LatexMathPlugin, CodeHighlightPlugin) {
           Scaffold(
             modifier = Modifier.fillMaxSize(),
