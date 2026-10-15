@@ -233,11 +233,15 @@ static inline CGSize ENRMMeasureMarkdownViewFree(const PropsT &typedProps, CGFlo
  * same condition, tables report full width. Finishes with `measureSize:`'s
  * pixel rounding (width capped at maxWidth) and its
  * (maxWidth × system-16 line height) fallback for empty/failed content.
+ * `wrappedCodeBlocks` holds the document-order indexes of top-level code blocks
+ * the user wrapped (EnrichedMarkdown.wrappedCodeBlockIndices); those measure at
+ * the block width instead of their unwrapped height.
  */
 template <typename PropsT>
 static inline CGSize ENRMMeasureSegmentedMarkdownViewFree(const PropsT &typedProps, CGFloat maxWidth, CGFloat fontScale,
                                                           CGFloat pointScaleFactor,
-                                                          NSWritingDirection resolvedLayoutDirection)
+                                                          NSWritingDirection resolvedLayoutDirection,
+                                                          NSSet<NSNumber *> *wrappedCodeBlocks = nil)
 {
   @autoreleasepool {
     CGSize fallback = CGSizeMake(maxWidth, UIFontLineHeight([UIFont systemFontOfSize:16.0]));
@@ -304,6 +308,7 @@ static inline CGSize ENRMMeasureSegmentedMarkdownViewFree(const PropsT &typedPro
     CGFloat yOffset = 0.0;
     CGFloat maxContentWidth = 0.0;
     const NSUInteger lastIndex = segments.count - 1;
+    NSUInteger codeBlockIndex = 0;
 
     for (NSUInteger i = 0; i < segments.count; i++) {
       ENRMRenderedSegment *segment = segments[i];
@@ -337,8 +342,13 @@ static inline CGSize ENRMMeasureSegmentedMarkdownViewFree(const PropsT &typedPro
         }
       } else if (segment.kind == ENRMSegmentKindCodeBlock && segment.codeBlockSegment) {
         yOffset += config.codeBlockMarginTop;
-        yOffset += [ENRMCodeBlockContainerView measureHeightForCodeBlockNode:segment.codeBlockSegment.codeBlockNode
-                                                                      config:config];
+        MarkdownASTNode *codeBlockNode = segment.codeBlockSegment.codeBlockNode;
+        yOffset += [wrappedCodeBlocks containsObject:@(codeBlockIndex)]
+                       ? [ENRMCodeBlockContainerView measureWrappedHeightForCodeBlockNode:codeBlockNode
+                                                                                   config:config
+                                                                                 maxWidth:maxWidth]
+                       : [ENRMCodeBlockContainerView measureHeightForCodeBlockNode:codeBlockNode config:config];
+        codeBlockIndex++;
         maxContentWidth = maxWidth;
         if (shouldAddBottomMargin) {
           yOffset += config.codeBlockMarginBottom;
