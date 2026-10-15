@@ -138,6 +138,7 @@ By default, a fenced code block wraps its long lines, and its code is part of th
 
 Pass [`codeBlockLayout = CodeBlockLayout.Scrollable`](/android/api-reference/enriched-markdown-text#codeblocklayout) to keep lines intact instead:
 
+- A header bar above the code shows the fence's language name (` ```py ` reads "Python") and a **copy button** that copies the code.
 - Lines never wrap. A block wider than the view **scrolls horizontally in place**, inside its box, without moving the rest of the document.
 - This applies to code blocks at the top level of the document. A code block inside a list item or a quote still wraps its lines.
 - Long-press a scrolling code block to copy its code, or to copy it as fenced Markdown. It is not part of the text selection.

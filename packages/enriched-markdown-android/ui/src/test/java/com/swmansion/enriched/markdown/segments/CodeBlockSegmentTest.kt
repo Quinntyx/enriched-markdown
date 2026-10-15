@@ -2,14 +2,22 @@
 
 package com.swmansion.enriched.markdown.segments
 
+import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
+import android.os.Looper
+import android.os.SystemClock
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
+import android.view.MotionEvent
 import android.view.View
 import android.widget.HorizontalScrollView
+import android.widget.ImageButton
 import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swmansion.enriched.markdown.CodeBlockCopy
 import com.swmansion.enriched.markdown.CodeBlockLayout
 import com.swmansion.enriched.markdown.EnrichedMarkdown
 import com.swmansion.enriched.markdown.parser.MarkdownASTNode
@@ -36,6 +44,8 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
@@ -75,6 +85,40 @@ class CodeBlockSegmentTest {
   private fun scrollViewOf(view: CodeBlockContainerView) = view.getChildAt(0) as HorizontalScrollView
 
   private fun textViewOf(view: CodeBlockContainerView) = scrollViewOf(view).getChildAt(0) as TextView
+
+  private fun languageViewOf(view: CodeBlockContainerView) = view.getChildAt(1) as TextView
+
+  private fun copyButtonOf(view: CodeBlockContainerView) = view.getChildAt(2) as ImageButton
+
+  // A view posts its click on ACTION_UP, so it has to be attached for the click to run.
+  private fun attach(view: View) {
+    Robolectric
+      .buildActivity(Activity::class.java)
+      .setup()
+      .get()
+      .setContentView(view)
+  }
+
+  private fun tap(
+    view: View,
+    x: Float,
+    y: Float,
+  ) {
+    val time = SystemClock.uptimeMillis()
+    for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+      val event = MotionEvent.obtain(time, time, action, x, y, 0)
+      view.dispatchTouchEvent(event)
+      event.recycle()
+    }
+    shadowOf(Looper.getMainLooper()).idle()
+  }
+
+  private fun clipboardText(): String? =
+    (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+      .primaryClip
+      ?.getItemAt(0)
+      ?.text
+      ?.toString()
 
   // A. Splitting and rendering
 
@@ -297,6 +341,34 @@ class CodeBlockSegmentTest {
   }
 
   @Test
+  fun headerSitsAboveTheCode() {
+    val view = newView(fencedCodeBlock("x", language = "kotlin"))
+    layOut(view, 1000)
+
+    val scrollView = scrollViewOf(view)
+    // Robolectric's text metrics make the label taller than on a device, so compare centers:
+    // both header views are centered above the code.
+    assertTrue(scrollView.top > 0)
+    assertTrue((languageViewOf(view).top + languageViewOf(view).bottom) / 2 < scrollView.top)
+    assertTrue((copyButtonOf(view).top + copyButtonOf(view).bottom) / 2 < scrollView.top)
+    assertTrue(copyButtonOf(view).left > languageViewOf(view).right)
+    assertEquals(view.height, scrollView.bottom + defaultStyle.codeBlockStyle.borderWidth.toInt())
+  }
+
+  @Test
+  fun wrapContentParentKeepsRoomForTheHeader() {
+    val view = newView(fencedCodeBlock("x", language = "kotlin"))
+    view.measure(
+      View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.AT_MOST),
+      View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+    )
+    view.layout(0, 0, view.measuredWidth, view.measuredHeight)
+
+    assertTrue(copyButtonOf(view).left >= languageViewOf(view).right)
+    assertTrue(copyButtonOf(view).right <= view.width)
+  }
+
+  @Test
   fun segmentMarginsComeFromTheCodeBlockStyle() {
     val view = newView(fencedCodeBlock("x"))
 
@@ -311,6 +383,99 @@ class CodeBlockSegmentTest {
     val view = newView(fencedCodeBlock("line 1\nline 2\n"))
 
     assertEquals("line 1\nline 2", textViewOf(view).text.toString())
+  }
+
+  @Test
+  fun headerShowsTheFenceLanguage() {
+    val view = newView(fencedCodeBlock("x", language = "kotlin"))
+
+    // The native display-name lookup is unavailable under Robolectric, so the raw fence string shows.
+    assertEquals("kotlin", languageViewOf(view).text.toString())
+
+    view.applyCodeBlockNode(fencedCodeBlock("x"))
+    assertEquals("", languageViewOf(view).text.toString())
+  }
+
+  @Test
+  fun copyButtonCopiesTheCode() {
+    val view = newView(fencedCodeBlock("line 1\nline 2\n", language = "kotlin"))
+
+    copyButtonOf(view).performClick()
+
+    assertEquals("line 1\nline 2", clipboardText())
+  }
+
+  @Test
+  fun copyButtonTakesTapsAroundItOverTheCode() {
+    val view = newView(fencedCodeBlock("line 1\nline 2\n", language = "kotlin"))
+    attach(view)
+    layOut(view, 1000)
+    val button = copyButtonOf(view)
+    val minTouchTarget = 48 * context.resources.displayMetrics.density
+    val belowButton = (button.top + button.bottom) / 2f + minTouchTarget / 2 - 1
+
+    assertTrue(belowButton > scrollViewOf(view).top)
+    tap(view, button.left + button.width / 2f, belowButton)
+
+    assertEquals("line 1\nline 2", clipboardText())
+  }
+
+  @Test
+  fun tapsAwayFromTheCopyButtonDoNotCopy() {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText("Previous", "previous"))
+    val view = newView(fencedCodeBlock("line 1\nline 2\n", language = "kotlin"))
+    attach(view)
+    layOut(view, 1000)
+
+    tap(view, 10f, view.height - 10f)
+
+    assertEquals("previous", clipboardText())
+  }
+
+  @Test
+  fun copyButtonLeavesTheClipboardAloneForAnEmptyBlock() {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText("Previous", "previous"))
+    val view = newView(fencedCodeBlock(""))
+    val copies = mutableListOf<CodeBlockCopy>()
+    view.onCodeBlockCopy = { copies += it }
+
+    copyButtonOf(view).performClick()
+
+    assertEquals("previous", clipboardText())
+    assertEquals(emptyList<CodeBlockCopy>(), copies)
+  }
+
+  @Test
+  fun copyButtonReportsTheCodeAndTheFenceLanguage() {
+    val view = newView(fencedCodeBlock("line 1\nline 2\n", language = "kotlin"))
+    val copies = mutableListOf<CodeBlockCopy>()
+    view.onCodeBlockCopy = { copies += it }
+
+    copyButtonOf(view).performClick()
+    view.applyCodeBlockNode(fencedCodeBlock("x"))
+    copyButtonOf(view).performClick()
+
+    assertEquals(listOf(CodeBlockCopy("line 1\nline 2", "kotlin"), CodeBlockCopy("x", null)), copies)
+  }
+
+  @Test
+  fun theViewsCopyCallbackReachesBlocksRenderedBeforeAndAfterItIsSet() {
+    val view = EnrichedMarkdown(context).apply { setCodeBlockLayout(CodeBlockLayout.Scrollable) }
+    val render = view.segmentRenderer()
+    val before = mutableListOf<CodeBlockCopy>()
+    val after = mutableListOf<CodeBlockCopy>()
+
+    view.setOnCodeBlockCopyCallback { before += it }
+    view.applyRenderedSegments(render(document(fencedCodeBlock("a"))))
+    copyButtonOf(view.getChildAt(0) as CodeBlockContainerView).performClick()
+
+    view.setOnCodeBlockCopyCallback { after += it }
+    copyButtonOf(view.getChildAt(0) as CodeBlockContainerView).performClick()
+
+    assertEquals(listOf(CodeBlockCopy("a", null)), before)
+    assertEquals(listOf(CodeBlockCopy("a", null)), after)
   }
 
   @Test
