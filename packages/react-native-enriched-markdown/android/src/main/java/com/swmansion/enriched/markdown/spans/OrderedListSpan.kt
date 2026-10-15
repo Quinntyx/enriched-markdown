@@ -19,6 +19,8 @@ class OrderedListSpan(
   context: Context,
   styleCache: SpanStyleCache,
   drawsMarker: Boolean = true,
+  private val markerWidth: Float = 0f,
+  ancestorMarkerOffset: Float = 0f,
   parentMarkerWidth: Float? = null,
 ) : BaseListSpan(
     depth = depth,
@@ -34,6 +36,7 @@ class OrderedListSpan(
     marginLeft = listStyle.marginLeft,
     gapWidth = listStyle.gapWidth,
     drawsMarker = drawsMarker,
+    ancestorMarkerOffset = ancestorMarkerOffset,
     parentMarkerWidth = parentMarkerWidth,
   ) {
   companion object {
@@ -47,8 +50,6 @@ class OrderedListSpan(
       applyStyles(null, ReactConstants.UNSET, fontWeight, fontFamily, context.assets)
     }
 
-  private val markerColumnWidth = listStyle.effectiveMarkerWidth(configureMarkerPaint().measureText("99."))
-
   private fun configureMarkerPaint(): TextPaint =
     sharedMarkerPaint.apply {
       textSize = listStyle.fontSize
@@ -56,7 +57,16 @@ class OrderedListSpan(
       typeface = markerTypeface
     }
 
-  override fun getMarkerWidth(): Float = markerColumnWidth
+  private val defaultMarkerWidth = measureMarkerWidth(99)
+  private val resolvedMarkerWidth = maxOf(markerWidth, defaultMarkerWidth)
+
+  internal val markerExtraWidth = resolvedMarkerWidth - defaultMarkerWidth
+
+  override fun getMarkerWidth(): Float = resolvedMarkerWidth
+
+  internal fun measureMarkerWidth(number: Int): Float = listStyle.effectiveMarkerWidth(configureMarkerPaint().measureText("$number."))
+
+  internal override fun getBaselineMarkerWidth(): Float = defaultMarkerWidth
 
   var itemNumber: Int = 1
     private set
@@ -76,7 +86,7 @@ class OrderedListSpan(
     val text = if (dir < 0) ".$itemNumber" else "$itemNumber."
     val textWidth = markerPaint.measureText(text)
 
-    val markerRightEdge = x + (depth * marginLeft + getMarkerWidth()) * dir
+    val markerRightEdge = x + (depth * marginLeft + ancestorMarkerOffset + getMarkerWidth()) * dir
     val markerX = if (dir > 0) markerRightEdge - textWidth else markerRightEdge
 
     canvas.drawText(text, markerX, baseline.toFloat(), markerPaint)

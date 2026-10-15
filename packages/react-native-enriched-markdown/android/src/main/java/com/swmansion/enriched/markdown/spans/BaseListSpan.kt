@@ -23,6 +23,7 @@ abstract class BaseListSpan(
   protected val marginLeft: Float,
   protected val gapWidth: Float,
   internal val drawsMarker: Boolean = true,
+  internal val ancestorMarkerOffset: Float = 0f,
   internal val parentMarkerWidth: Float? = null,
 ) : MetricAffectingSpan(),
   LeadingMarginSpan {
