@@ -23,13 +23,13 @@ let package = Package(
         .target(
             name: "EnrichedMarkdownCore",
             path: "core",
-            sources: ["md4c", "parser", "highlight"],
+            sources: ["enrmrkd", "parser", "highlight"],
             publicHeadersPath: "parser",
             cSettings: [
-                .define("MD4C_USE_UTF8", to: "1")
+                .define("ENRMRKD_USE_UTF8", to: "1")
             ],
             cxxSettings: [
-                .headerSearchPath("md4c"),
+                .headerSearchPath("enrmrkd"),
                 .headerSearchPath("parser")
             ]
         ),
@@ -39,10 +39,10 @@ let package = Package(
             path: "cpp",
             publicHeadersPath: ".",
             cxxSettings: [
-                .headerSearchPath("../core/md4c"),
+                .headerSearchPath("../core/enrmrkd"),
                 .headerSearchPath("../core/parser"),
                 .headerSearchPath("../core/highlight"),
-                .define("MD4C_USE_UTF8", to: "1")
+                .define("ENRMRKD_USE_UTF8", to: "1")
             ]
         ),
         .target(

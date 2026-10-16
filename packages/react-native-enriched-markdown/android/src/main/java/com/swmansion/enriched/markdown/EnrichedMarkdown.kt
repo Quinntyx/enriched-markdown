@@ -60,6 +60,10 @@ class EnrichedMarkdown(
   private enum class DirtyFlag {
     RECREATE_SEGMENTS,
     FORCE_HEIGHT,
+
+    // Yoga already measured with inputs that changed after (the wrapped code
+    // blocks a prop reset cleared), so it has to be asked to measure again.
+    REMEASURE,
   }
 
   private val parser = Parser.shared
@@ -244,11 +248,30 @@ class EnrichedMarkdown(
       dynamicProps.enableCodeBlockPress = value
     }
 
+  private val codeBlockWrapState =
+    CodeBlockWrapState(viewTag = { id }, codeBlockViews = ::codeBlockViews, onHeightChanged = ::onImageLayoutChanged)
+
+  var enableCodeBlockWrapToggle: Boolean
+    get() = codeBlockWrapState.enabled
+    set(value) {
+      if (codeBlockWrapState.setEnabled(value)) onImageLayoutChanged()
+    }
+
   init {
     segmentViewFactory = RootFactory()
   }
 
-  fun setMarkdownContent(markdown: String) {
+  // isTaskToggle marks a checkbox flip rendered locally ahead of the prop; it
+  // moves no code block, so it skips the wrap state's reset rule.
+  fun setMarkdownContent(
+    markdown: String,
+    isTaskToggle: Boolean = false,
+  ) {
+    // The shadow node measures the new markdown before this setter runs, still
+    // with the old wrapped set, so a reset needs Yoga to measure again.
+    if (!isTaskToggle && codeBlockWrapState.onMarkdownProp(markdown, currentMarkdown)) {
+      dirtyFlags += DirtyFlag.REMEASURE
+    }
     if (currentMarkdown == markdown) return
     currentMarkdown = markdown
     ++currentRenderId
@@ -466,6 +489,9 @@ class EnrichedMarkdown(
     segmentViews.filterIsInstance<TableContainerView>().forEach {
       it.accessibilityLabels = labels
     }
+    codeBlockViews().forEach {
+      it.accessibilityLabels = labels
+    }
     mathContainerClass?.let { mathClass ->
       segmentViews.filter { mathClass.isInstance(it) }.forEach { view ->
         runCatching {
@@ -593,6 +619,7 @@ class EnrichedMarkdown(
 
     val reset = DirtyFlag.RECREATE_SEGMENTS in dirtyFlags
     val forceHeight = DirtyFlag.FORCE_HEIGHT in dirtyFlags
+    val remeasure = DirtyFlag.REMEASURE in dirtyFlags
     dirtyFlags.clear()
 
     val topologyChanged = applySegments(renderedSegments, reset)
@@ -604,6 +631,7 @@ class EnrichedMarkdown(
         view.pending = pendingCodeBlockSegment != null && index == segmentViews.size - 1
       }
     }
+    codeBlockWrapState.sync()
 
     if (width > 0) {
       val heightBefore = computeSegmentsTotalHeight()
@@ -615,6 +643,7 @@ class EnrichedMarkdown(
         requestLayout()
       }
     }
+    if (remeasure) onImageLayoutChanged()
   }
 
   private fun isMathContainerView(view: View): Boolean = mathContainerClass?.isInstance(view) == true

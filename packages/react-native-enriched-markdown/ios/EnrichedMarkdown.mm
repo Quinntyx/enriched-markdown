@@ -31,6 +31,7 @@
 #endif
 #import "ENRMBlockquoteContainerView.h"
 #import "ENRMCodeBlockContainerView.h"
+#import "ENRMCodeBlockWrapState.h"
 #import "ENRMDynamicBlockProps.h"
 #import "ENRMSpoilerCapable.h"
 #import "ENRMSpoilerOverlayView.h"
@@ -138,6 +139,7 @@ static char kENRMSegmentFadeAnimatorKey;
   ENRMCodeBlockStreamingMode _codeBlockStreamingMode;
   // Trailing code block whose closing fence hasn't streamed in yet, if any.
   ENRMCodeBlockSegment *_pendingCodeBlockSegment;
+  ENRMCodeBlockWrapState *_codeBlockWrapState;
 
   size_t _renderedStyleFingerprint;
   size_t _pendingStyleFingerprint;
@@ -244,6 +246,21 @@ static char kENRMSegmentFadeAnimatorKey;
     _enableLinkPreview = YES;
     _enableTaskListItemToggle = YES;
     _enableImagePress = NO;
+    __weak EnrichedMarkdown *weakWrapSelf = self;
+    _codeBlockWrapState = [[ENRMCodeBlockWrapState alloc]
+        initWithCodeBlockViews:^{
+          NSMutableArray<ENRMCodeBlockContainerView *> *views = [NSMutableArray array];
+          EnrichedMarkdown *strongSelf = weakWrapSelf;
+          if (strongSelf) {
+            ENRMCollectCodeBlockViews(strongSelf->_segmentViews, views);
+          }
+          return views;
+        }
+        onHeightChanged:^{
+          EnrichedMarkdown *strongSelf = weakWrapSelf;
+          [strongSelf setNeedsLayout];
+          [strongSelf requestHeightUpdate];
+        }];
     _dynamicBlockProps = [[ENRMDynamicBlockProps alloc] init];
     _linkContextMenus = [[ENRMLinkContextMenus alloc] init];
     __weak EnrichedMarkdown *weakMenuSelf = self;
@@ -763,6 +780,8 @@ static char kENRMSegmentFadeAnimatorKey;
       ((TableContainerView *)segment).accessibilityLabels = _accessibilityLabels;
     } else if ([segment isKindOfClass:[ENRMBlockquoteContainerView class]]) {
       ((ENRMBlockquoteContainerView *)segment).accessibilityLabels = _accessibilityLabels;
+    } else if ([segment isKindOfClass:[ENRMCodeBlockContainerView class]]) {
+      ((ENRMCodeBlockContainerView *)segment).accessibilityLabels = _accessibilityLabels;
     }
 #if ENRICHED_MARKDOWN_MATH
     else if ([segment isKindOfClass:[ENRMMathContainerView class]]) {
@@ -1007,6 +1026,7 @@ static char kENRMSegmentFadeAnimatorKey;
           self->_pendingCodeBlockSegment != nil && i == self->_segmentViews.count - 1;
     }
   }];
+  [_codeBlockWrapState sync];
 
   CGRect contentBounds = [self contentBounds];
   if (contentBounds.size.width > 0) {
@@ -1142,6 +1162,7 @@ static char kENRMSegmentFadeAnimatorKey;
 {
   ENRMCodeBlockContainerView *codeBlockView = [[ENRMCodeBlockContainerView alloc] initWithConfig:_config];
   codeBlockView.dynamicProps = _dynamicBlockProps;
+  codeBlockView.accessibilityLabels = _accessibilityLabels;
 
   __weak EnrichedMarkdown *weakSelf = self;
   codeBlockView.onCopyPress = ^(NSString *code, NSString *language) {
@@ -1158,6 +1179,11 @@ static char kENRMSegmentFadeAnimatorKey;
   codeBlockView.pending = codeBlockSegment == _pendingCodeBlockSegment;
   [codeBlockView applyCodeBlockNode:codeBlockSegment.codeBlockNode];
   return codeBlockView;
+}
+
+- (NSSet<NSNumber *> *)wrappedCodeBlockIndices
+{
+  return _codeBlockWrapState.indices;
 }
 
 - (void)animateBlockViewIfNeeded:(RCTUIView *)view
@@ -1212,6 +1238,13 @@ static char kENRMSegmentFadeAnimatorKey;
   BOOL markdownChanged = oldViewProps.markdown != newViewProps.markdown;
   if (markdownChanged) {
     _dirtyFlags |= ENRMDirtyRender;
+    // A task toggle renders its result locally before JS echoes it back as a
+    // prop, so the rendered document is handed over for the echo check.
+    if ([_codeBlockWrapState markdownPropDidChangeFrom:oldViewProps.markdown
+                                                    to:newViewProps.markdown
+                                              rendered:_cachedMarkdown]) {
+      _dirtyFlags |= ENRMDirtyForceHeight;
+    }
   }
 
   NSDictionary *mediaOverrides = ENRMMediaOverridesFromProps(newViewProps);
@@ -1346,6 +1379,11 @@ static char kENRMSegmentFadeAnimatorKey;
   _dynamicBlockProps.enableBlockContextMenu = newViewProps.enableBlockContextMenu;
   _dynamicBlockProps.enableCodeBlockPress = newViewProps.enableCodeBlockPress;
 
+  if ([_codeBlockWrapState updateEnabled:newViewProps.enableCodeBlockWrapToggle]) {
+    [self setNeedsLayout];
+    [self requestHeightUpdate];
+  }
+
   if (newViewProps.streamingAnimation != oldViewProps.streamingAnimation) {
     _streamingAnimation = newViewProps.streamingAnimation;
     _dirtyFlags |= ENRMDirtyForceHeight | ENRMDirtyRender;
@@ -1413,6 +1451,10 @@ static char kENRMSegmentFadeAnimatorKey;
         [[NSString alloc] initWithUTF8String:newViewProps.accessibilityLabels.table.row.c_str()];
     _accessibilityLabels.mathEquation =
         [[NSString alloc] initWithUTF8String:newViewProps.accessibilityLabels.math.equation.c_str()];
+    _accessibilityLabels.codeBlockWrap =
+        [[NSString alloc] initWithUTF8String:newViewProps.accessibilityLabels.codeBlock.wrap.c_str()];
+    _accessibilityLabels.codeBlockUnwrap =
+        [[NSString alloc] initWithUTF8String:newViewProps.accessibilityLabels.codeBlock.unwrap.c_str()];
     _accessibilityLabels.rotorHeadings =
         [[NSString alloc] initWithUTF8String:newViewProps.accessibilityLabels.rotor.headings.c_str()];
     _accessibilityLabels.rotorLinks =
@@ -1534,6 +1576,7 @@ static char kENRMSegmentFadeAnimatorKey;
   _tableStreamingMode = ENRMTableStreamingModeProgressive;
   _codeBlockStreamingMode = ENRMCodeBlockStreamingModeProgressive;
   _pendingCodeBlockSegment = nil;
+  [_codeBlockWrapState reset];
   _lineBreakStrategy = NSLineBreakStrategyNone;
   _writingDirectionMode = ENRMWritingDirectionModeFirstStrong;
   _renderedStyleFingerprint = 0;

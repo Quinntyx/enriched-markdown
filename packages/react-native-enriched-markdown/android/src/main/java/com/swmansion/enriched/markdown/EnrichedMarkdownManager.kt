@@ -63,7 +63,8 @@ class EnrichedMarkdownManager :
     view.setOnTaskListItemPressCallback { taskIndex, checked, itemText ->
       val newChecked = !checked
       val updatedMarkdown = TaskListToggleUtils.toggleAtIndex(view.currentMarkdown, taskIndex, newChecked)
-      view.setMarkdownContent(updatedMarkdown)
+      // A checkbox flip keeps every code block where it was, so keep their wrap state too.
+      view.setMarkdownContent(updatedMarkdown, isTaskToggle = true)
       view.commitProps()
       emitTaskListItemPress(view, taskIndex, newChecked, itemText)
     }
@@ -328,6 +329,14 @@ class EnrichedMarkdownManager :
     enableCodeBlockPress: Boolean,
   ) {
     view?.enableCodeBlockPress = enableCodeBlockPress
+  }
+
+  @ReactProp(name = "enableCodeBlockWrapToggle", defaultBoolean = true)
+  override fun setEnableCodeBlockWrapToggle(
+    view: EnrichedMarkdown?,
+    enableCodeBlockWrapToggle: Boolean,
+  ) {
+    view?.enableCodeBlockWrapToggle = enableCodeBlockWrapToggle
   }
 
   @ReactProp(name = "lineBreakStrategyIOS")
