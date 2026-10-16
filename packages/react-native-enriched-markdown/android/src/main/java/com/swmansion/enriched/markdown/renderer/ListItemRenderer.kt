@@ -51,34 +51,16 @@ class ListItemRenderer(
           taskIndex = taskIndex,
           isChecked = isChecked,
           drawsMarker = drawsMarker,
-          ancestorMarkerOffset = styleContext.ancestorMarkerOffset,
           parentMarkerWidth = parentMarkerWidth,
         )
       } else {
         when (listType) {
           BlockStyleContext.ListType.UNORDERED -> {
-            UnorderedListSpan(
-              listStyle,
-              depth,
-              factory.context,
-              factory.styleCache,
-              drawsMarker,
-              styleContext.ancestorMarkerOffset,
-              parentMarkerWidth,
-            )
+            UnorderedListSpan(listStyle, depth, factory.context, factory.styleCache, drawsMarker, parentMarkerWidth)
           }
 
           BlockStyleContext.ListType.ORDERED -> {
-            OrderedListSpan(
-              listStyle,
-              depth,
-              factory.context,
-              factory.styleCache,
-              drawsMarker,
-              styleContext.listMarkerWidth,
-              styleContext.ancestorMarkerOffset,
-              parentMarkerWidth,
-            ).apply {
+            OrderedListSpan(listStyle, depth, factory.context, factory.styleCache, drawsMarker, parentMarkerWidth).apply {
               setItemNumber(styleContext.listItemNumber)
             }
           }
@@ -87,8 +69,6 @@ class ListItemRenderer(
 
     val markerSpan = makeSpan(drawsMarker = true)
 
-    val previousMarkerExtra = styleContext.listItemMarkerExtra
-    styleContext.listItemMarkerExtra = (markerSpan as? OrderedListSpan)?.markerExtraWidth ?: 0f
     val prevIndent = styleContext.accumulatedIndent
     styleContext.accumulatedIndent = prevIndent + markerSpan.getLeadingMargin(false)
     try {
@@ -96,7 +76,6 @@ class ListItemRenderer(
       factory.renderChildren(node, builder, onLinkPress, onLinkLongPress)
     } finally {
       styleContext.accumulatedIndent = prevIndent
-      styleContext.listItemMarkerExtra = previousMarkerExtra
       styleContext.listItemMarkerWidth = parentMarkerWidth
     }
 

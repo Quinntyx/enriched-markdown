@@ -2080,13 +2080,11 @@ static const CGFloat kDefaultMinGap = 4.0;
   return MAX(_listStyleMarkerMinWidth, _listStyleBulletSize / 2.0);
 }
 
-- (CGFloat)effectiveListMarginLeftForNumber:(NSInteger)number
+- (CGFloat)effectiveListMarginLeftForNumber
 {
   UIFont *font = [self listMarkerFont];
   CGFloat natural =
-      [[NSString stringWithFormat:@"%ld.", (long)number]
-          sizeWithAttributes:@{NSFontAttributeName : font ?: [UIFont systemFontOfSize:_listStyleFontSize]}]
-          .width;
+      [@"99." sizeWithAttributes:@{NSFontAttributeName : font ?: [UIFont systemFontOfSize:_listStyleFontSize]}].width;
   return MAX(_listStyleMarkerMinWidth, natural);
 }
 
