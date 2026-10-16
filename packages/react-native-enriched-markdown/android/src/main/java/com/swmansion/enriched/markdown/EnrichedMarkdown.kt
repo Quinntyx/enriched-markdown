@@ -150,9 +150,8 @@ class EnrichedMarkdown(
       dynamicProps.enableCodeBlockPress = value
     }
 
-  // Document-order indexes of the top-level code blocks the user wrapped. Kept
-  // across renders so streaming and segment recreation keep the choice, and
-  // mirrored into MeasurementStore so the Yoga measure pass sees it.
+  // Document-order indexes of the wrapped top-level code blocks, kept across
+  // renders and mirrored into MeasurementStore for the Yoga measure pass.
   private var wrappedCodeBlocks: Set<Int> = emptySet()
 
   var enableCodeBlockWrapToggle: Boolean = false

@@ -45,8 +45,8 @@ void EnrichedMarkdownShadowNode::dirtyLayoutIfNeeded()
   }
 }
 
-// Order-independent fingerprint of the wrapped set for the measurement cache
-// key: 0 for none, and {0} hashes apart from {} (HashUtils::combine is not 0 at 0).
+// Order-independent fingerprint of the wrapped set for the cache key; 0 for none,
+// and {0} still hashes apart from {}.
 static size_t ENRMWrappedCodeBlocksFingerprint(NSSet<NSNumber *> *wrappedCodeBlocks)
 {
   size_t h = 0;

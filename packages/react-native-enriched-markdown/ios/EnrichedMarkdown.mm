@@ -1066,9 +1066,7 @@ static char kENRMSegmentFadeAnimatorKey;
   return codeBlockView;
 }
 
-// Wrap state is keyed by a code block's position among the top-level code
-// blocks, so it survives streaming updates and segment recreation; the view-free
-// measure pass reads the same indexes (see wrappedCodeBlockIndices).
+// Pushes wrappedCodeBlockIndices onto the current code block views by position.
 - (void)syncCodeBlockWrapState
 {
   NSSet<NSNumber *> *wrapped = self.wrappedCodeBlockIndices;
@@ -1162,10 +1160,15 @@ static char kENRMSegmentFadeAnimatorKey;
     // the document grows in place. Streaming may rewrite its unfinished last line
     // (an HTML tag closing, a link relabeled); anything earlier changing - a
     // recycled cell, an edited message, a block inserted above - starts unwrapped.
+    // A task toggle renders its result locally before JS echoes it back as a
+    // prop; that echo is the document already on screen, so the choice stands.
+    const bool echoesRendered =
+        _cachedMarkdown != nil && newViewProps.markdown == std::string(_cachedMarkdown.UTF8String);
     const auto &previous = oldViewProps.markdown;
     const auto lastNewline = previous.rfind('\n');
     const auto stablePrefix = lastNewline == std::string::npos ? std::string() : previous.substr(0, lastNewline);
-    if (self.wrappedCodeBlockIndices.count > 0 && newViewProps.markdown.rfind(stablePrefix, 0) != 0) {
+    if (self.wrappedCodeBlockIndices.count > 0 && !echoesRendered &&
+        newViewProps.markdown.rfind(stablePrefix, 0) != 0) {
       self.wrappedCodeBlockIndices = [NSSet set];
       _dirtyFlags |= ENRMDirtyForceHeight;
     }

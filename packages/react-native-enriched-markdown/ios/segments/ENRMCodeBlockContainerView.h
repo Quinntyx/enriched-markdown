@@ -32,8 +32,8 @@ typedef void (^ENRMCodeBlockWrapToggleBlock)(ENRMCodeBlockContainerView *view);
 
 @property (nonatomic, strong) StyleConfig *config;
 
-// Shows the header wrap toggle next to the copy button (iOS only). Set by the
-// root host from the enableCodeBlockWrapToggle prop.
+// Header wrap toggle next to copy (iOS only); the root host sets it from
+// enableCodeBlockWrapToggle.
 @property (nonatomic, assign) BOOL showsWrapButton;
 
 // Wraps long lines at the block width instead of scrolling horizontally.

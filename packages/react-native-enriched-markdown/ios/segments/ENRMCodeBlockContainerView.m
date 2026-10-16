@@ -444,7 +444,6 @@ static BOOL ENRMColorIsDark(RCTUIColor *color)
   CGFloat buttonTop = MAX([self headerCenterY] - headerH / 2, 0);
   _copyButton.frame = CGRectMake(buttonLeft, buttonTop, headerH, headerH);
 #if !TARGET_OS_OSX
-  // The wrap toggle sits one button-width left of copy, in the same row.
   _wrapButton.frame = CGRectMake(MAX(buttonLeft - headerH, 0), buttonTop, headerH, headerH);
 #endif
 }
@@ -501,8 +500,8 @@ static BOOL ENRMColorIsDark(RCTUIColor *color)
   }
   _wrapped = wrapped;
   if (!wrapped) {
-    // The scroll extent reads the unwrapped width, which a rebuild while wrapped
-    // measured at the wrap width.
+    // Restore the unwrapped width for the scroll extent; a rebuild while
+    // wrapped measured at the wrap width.
     _codeContentView.wrapWidth = 0;
     _codeSize.width = _codeContentView.usedWidth;
   }

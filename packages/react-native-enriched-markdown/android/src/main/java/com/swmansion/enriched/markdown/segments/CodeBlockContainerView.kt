@@ -6,7 +6,6 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
@@ -26,7 +25,6 @@ import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.AppCompatTextView
-import androidx.core.graphics.PathParser
 import com.swmansion.enriched.markdown.accessibility.AccessibilityLabels
 import com.swmansion.enriched.markdown.parser.MarkdownASTNode
 import com.swmansion.enriched.markdown.spans.LineHeightSpan
@@ -38,6 +36,7 @@ import com.swmansion.enriched.markdown.utils.text.extensions.applyCodeBlockTextS
 import com.swmansion.enriched.markdown.utils.text.span.SPAN_FLAGS_EXCLUSIVE_EXCLUSIVE
 import com.swmansion.enriched.markdown.views.ContextMenuPopup
 import com.swmansion.enriched.markdown.views.CopyGlyph
+import com.swmansion.enriched.markdown.views.WrapGlyph
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -98,8 +97,7 @@ class CodeBlockContainerView(
       rebuildCodeText()
     }
 
-  // Shows the header wrap toggle next to the copy button. Set by the root host
-  // from the enableCodeBlockWrapToggle prop.
+  // Header wrap toggle next to copy; the root host sets it from enableCodeBlockWrapToggle.
   var showsWrapButton: Boolean = false
     set(value) {
       if (field == value) return
@@ -318,7 +316,6 @@ class CodeBlockContainerView(
       buttonLeft + copyButton.measuredWidth,
       buttonTop + copyButton.measuredHeight,
     )
-    // The wrap toggle sits one button-width left of copy, in the same row.
     val wrapLeft = (buttonLeft - wrapButton.measuredWidth).coerceAtLeast(0)
     wrapButton.layout(wrapLeft, buttonTop, wrapLeft + wrapButton.measuredWidth, buttonTop + wrapButton.measuredHeight)
 
@@ -417,16 +414,20 @@ class CodeBlockContainerView(
     override fun getOpacity() = PixelFormat.TRANSLUCENT
   }
 
-  // Material "wrap_text" glyph, drawn from its 24-unit path at the copy glyph's size.
+  // Material "wrap_text" glyph, stroked like the copy glyph at the same size.
   private class WrapIconDrawable(
     color: Int,
     private val size: Int,
   ) : Drawable() {
     private val paint =
       Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
+        style = Paint.Style.STROKE
+        strokeWidth = size / 20f
+        strokeJoin = Paint.Join.ROUND
+        strokeCap = Paint.Cap.ROUND
         this.color = color
       }
+    private val glyph = WrapGlyph()
 
     fun setColor(color: Int) {
       paint.color = color
@@ -434,11 +435,9 @@ class CodeBlockContainerView(
     }
 
     override fun draw(canvas: Canvas) {
-      val scale = bounds.width() / 24f
       val saved = canvas.save()
       canvas.translate(bounds.left.toFloat(), bounds.top.toFloat())
-      canvas.scale(scale, scale)
-      canvas.drawPath(WRAP_TEXT_PATH, paint)
+      glyph.draw(canvas, bounds.width().toFloat(), paint)
       canvas.restoreToCount(saved)
     }
 
@@ -459,12 +458,6 @@ class CodeBlockContainerView(
   }
 
   companion object {
-    private val WRAP_TEXT_PATH: Path by lazy {
-      PathParser.createPathFromPathData(
-        "M4 19h6v-2H4v2zM20 5H4v2h16V5zm-3 6H4v2h13.25c1.1 0 2 .9 2 2s-.9 2-2 2H15v-2l-3 3 3 3v-2h2c2.21 0 4-1.79 4-4s-1.79-4-4-4z",
-      )
-    }
-
     private const val HEADER_LABEL_SCALE = 0.85f
 
     // Drawable box for the copy glyph, as a multiple of the code font size.
