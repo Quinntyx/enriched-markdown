@@ -43,6 +43,15 @@ import java.util.EnumSet
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
+// Code block wrap state is keyed by block position, so it only stays meaningful
+// while the document grows in place. Streaming may rewrite its unfinished last
+// line (an HTML tag closing, a link relabeled); anything earlier changing - a
+// recycled cell, an edited message, a block inserted above - starts unwrapped.
+internal fun keepsCodeBlockWrapState(
+  previous: String,
+  next: String,
+): Boolean = next.startsWith(previous.substringBeforeLast('\n', ""))
+
 class EnrichedMarkdown(
   context: Context,
 ) : ContainerNodeView(context),
@@ -141,12 +150,58 @@ class EnrichedMarkdown(
       dynamicProps.enableCodeBlockPress = value
     }
 
+  // Document-order indexes of the top-level code blocks the user wrapped. Kept
+  // across renders so streaming and segment recreation keep the choice, and
+  // mirrored into MeasurementStore so the Yoga measure pass sees it.
+  private var wrappedCodeBlocks: Set<Int> = emptySet()
+
+  var enableCodeBlockWrapToggle: Boolean = false
+    set(value) {
+      if (field == value) return
+      field = value
+      val hadWrappedBlocks = wrappedCodeBlocks.isNotEmpty()
+      if (!value) setWrappedCodeBlocks(emptySet())
+      syncCodeBlockWrapState()
+      if (hadWrappedBlocks && !value) onImageLayoutChanged()
+    }
+
+  private fun setWrappedCodeBlocks(value: Set<Int>) {
+    wrappedCodeBlocks = value
+    MeasurementStore.updateWrappedCodeBlocks(id, value)
+  }
+
+  private fun syncCodeBlockWrapState() {
+    var codeBlockIndex = 0
+    segmentViews.forEach { view ->
+      if (view is CodeBlockContainerView) {
+        view.onWrapToggle = ::codeBlockDidToggleWrap
+        view.showsWrapButton = enableCodeBlockWrapToggle
+        view.wrapped = enableCodeBlockWrapToggle && codeBlockIndex in wrappedCodeBlocks
+        codeBlockIndex++
+      }
+    }
+  }
+
+  private fun codeBlockDidToggleWrap(view: CodeBlockContainerView) {
+    val codeBlockIndex = segmentViews.filterIsInstance<CodeBlockContainerView>().indexOf(view)
+    if (codeBlockIndex < 0) return
+    setWrappedCodeBlocks(if (view.wrapped) wrappedCodeBlocks + codeBlockIndex else wrappedCodeBlocks - codeBlockIndex)
+    onImageLayoutChanged()
+  }
+
   init {
     segmentViewFactory = RootFactory()
   }
 
-  fun setMarkdownContent(markdown: String) {
+  fun setMarkdownContent(
+    markdown: String,
+    keepWrapState: Boolean = false,
+  ) {
     if (currentMarkdown == markdown) return
+    if (!keepWrapState && wrappedCodeBlocks.isNotEmpty() && !keepsCodeBlockWrapState(currentMarkdown, markdown)) {
+      setWrappedCodeBlocks(emptySet())
+      dirtyFlags += DirtyFlag.FORCE_HEIGHT
+    }
     currentMarkdown = markdown
     renderPending = true
   }
@@ -360,6 +415,9 @@ class EnrichedMarkdown(
     segmentViews.filterIsInstance<TableContainerView>().forEach {
       it.accessibilityLabels = labels
     }
+    segmentViews.filterIsInstance<CodeBlockContainerView>().forEach {
+      it.accessibilityLabels = labels
+    }
     mathContainerClass?.let { mathClass ->
       segmentViews.filter { mathClass.isInstance(it) }.forEach { view ->
         runCatching {
@@ -469,6 +527,7 @@ class EnrichedMarkdown(
         view.pending = pendingCodeBlockSegment != null && index == segmentViews.size - 1
       }
     }
+    syncCodeBlockWrapState()
 
     if (width > 0) {
       val heightBefore = computeSegmentsTotalHeight()
