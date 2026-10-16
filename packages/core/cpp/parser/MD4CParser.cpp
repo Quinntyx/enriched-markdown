@@ -1,12 +1,76 @@
 #include "MD4CParser.hpp"
 #include "enrmrkd.h"
 #include <cctype>
+#include <cstdlib>
+extern "C" {
+#include "enrmrkd-entity.h"
+}
 #include <cstring>
 #include <vector>
 
 namespace Markdown {
 
 namespace {
+void appendCodepoint(std::string &output, unsigned int codepoint) {
+  if (codepoint == 0 || codepoint > 0x10FFFF || (codepoint >= 0xD800 && codepoint <= 0xDFFF)) {
+    codepoint = 0xFFFD;
+  }
+  if (codepoint < 0x80) {
+    output += static_cast<char>(codepoint);
+  } else if (codepoint < 0x800) {
+    output += static_cast<char>(0xC0 | (codepoint >> 6));
+    output += static_cast<char>(0x80 | (codepoint & 0x3F));
+  } else if (codepoint < 0x10000) {
+    output += static_cast<char>(0xE0 | (codepoint >> 12));
+    output += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+    output += static_cast<char>(0x80 | (codepoint & 0x3F));
+  } else {
+    output += static_cast<char>(0xF0 | (codepoint >> 18));
+    output += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
+    output += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+    output += static_cast<char>(0x80 | (codepoint & 0x3F));
+  }
+}
+
+// md4c has already classified syntax, so a decoded delimiter stays literal text.
+void appendCharacterReference(std::string &output, const char *text, size_t size) {
+  if (size < 4) {
+    output.append(text, size);
+    return;
+  }
+  if (text[1] != '#') {
+    const ENRMRKD_ENTITY *entity = enrmrkd_entity_lookup(text, size);
+    if (!entity) {
+      output.append(text, size);
+      return;
+    }
+    appendCodepoint(output, entity->codepoints[0]);
+    if (entity->codepoints[1])
+      appendCodepoint(output, entity->codepoints[1]);
+    return;
+  }
+  const bool hex = text[2] == 'x' || text[2] == 'X';
+  const char *begin = text + (hex ? 3 : 2);
+  const char *end = text + size - 1;
+  unsigned int codepoint = 0;
+  for (const char *p = begin; p != end; ++p) {
+    unsigned int digit;
+    if (*p >= '0' && *p <= '9') {
+      digit = *p - '0';
+    } else if (hex && *p >= 'a' && *p <= 'f') {
+      digit = *p - 'a' + 10;
+    } else if (hex && *p >= 'A' && *p <= 'F') {
+      digit = *p - 'A' + 10;
+    } else {
+      codepoint = 0;
+      break;
+    }
+    // md4c caps numeric references at 7 decimal or 6 hex digits, so this cannot overflow.
+    codepoint = codepoint * (hex ? 16 : 10) + digit;
+  }
+  appendCodepoint(output, codepoint);
+}
+
 struct HtmlTag {
   std::string name;
   std::unordered_map<std::string, std::string> attributes;
@@ -80,13 +144,25 @@ public:
     }
   }
 
+  // Attributes arrive as typed substrings; entity segments decode like text does.
   std::string getAttributeText(const ENRMRKD_ATTRIBUTE *attr) {
     if (!attr || attr->size == 0 || !attr->text)
       return {};
+    if (!attr->substr_types || !attr->substr_offsets)
+      return std::string(attr->text, attr->size);
 
-    // Use string constructor directly - let SSO handle small strings efficiently
-    // Empty return {} avoids allocating empty string object
-    return std::string(attr->text, attr->size);
+    std::string result;
+    result.reserve(attr->size);
+    for (size_t i = 0; attr->substr_offsets[i] < attr->size; i++) {
+      const char *start = attr->text + attr->substr_offsets[i];
+      const size_t length = attr->substr_offsets[i + 1] - attr->substr_offsets[i];
+      if (attr->substr_types[i] == ENRMRKD_TEXT_ENTITY) {
+        appendCharacterReference(result, start, length);
+      } else {
+        result.append(start, length);
+      }
+    }
+    return result;
   }
 
   static int enterBlock(ENRMRKD_BLOCKTYPE type, void *detail, void *userdata) {
@@ -423,6 +499,11 @@ public:
       if (impl->inHtmlBlock) {
         impl->htmlBlockContent.append(text, size);
       }
+      return 0;
+    }
+
+    if (type == ENRMRKD_TEXT_ENTITY) {
+      appendCharacterReference(impl->currentText, text, size);
       return 0;
     }
 
