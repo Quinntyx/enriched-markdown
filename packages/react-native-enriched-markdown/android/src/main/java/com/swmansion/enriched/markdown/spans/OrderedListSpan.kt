@@ -19,7 +19,6 @@ class OrderedListSpan(
   context: Context,
   styleCache: SpanStyleCache,
   drawsMarker: Boolean = true,
-  parentMarkerWidth: Float? = null,
 ) : BaseListSpan(
     depth = depth,
     context = context,
@@ -34,7 +33,6 @@ class OrderedListSpan(
     marginLeft = listStyle.marginLeft,
     gapWidth = listStyle.gapWidth,
     drawsMarker = drawsMarker,
-    parentMarkerWidth = parentMarkerWidth,
   ) {
   companion object {
     private val sharedMarkerPaint = TextPaint().apply { isAntiAlias = true }
@@ -47,8 +45,6 @@ class OrderedListSpan(
       applyStyles(null, ReactConstants.UNSET, fontWeight, fontFamily, context.assets)
     }
 
-  private val markerColumnWidth = listStyle.effectiveMarkerWidth(configureMarkerPaint().measureText("99."))
-
   private fun configureMarkerPaint(): TextPaint =
     sharedMarkerPaint.apply {
       textSize = listStyle.fontSize
@@ -56,7 +52,10 @@ class OrderedListSpan(
       typeface = markerTypeface
     }
 
-  override fun getMarkerWidth(): Float = markerColumnWidth
+  override fun getMarkerWidth(): Float {
+    val paint = configureMarkerPaint()
+    return listStyle.effectiveMarkerWidth(paint.measureText("99."))
+  }
 
   var itemNumber: Int = 1
     private set

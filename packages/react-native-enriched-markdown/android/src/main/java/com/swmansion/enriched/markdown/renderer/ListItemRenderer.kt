@@ -38,7 +38,6 @@ class ListItemRenderer(
 
     val depth = styleContext.listDepth - 1
     val listStyle = config.style.listStyle
-    val parentMarkerWidth = styleContext.listItemMarkerWidth
 
     fun makeSpan(drawsMarker: Boolean): BaseListSpan =
       if (isTask) {
@@ -51,16 +50,15 @@ class ListItemRenderer(
           taskIndex = taskIndex,
           isChecked = isChecked,
           drawsMarker = drawsMarker,
-          parentMarkerWidth = parentMarkerWidth,
         )
       } else {
         when (listType) {
           BlockStyleContext.ListType.UNORDERED -> {
-            UnorderedListSpan(listStyle, depth, factory.context, factory.styleCache, drawsMarker, parentMarkerWidth)
+            UnorderedListSpan(listStyle, depth, factory.context, factory.styleCache, drawsMarker)
           }
 
           BlockStyleContext.ListType.ORDERED -> {
-            OrderedListSpan(listStyle, depth, factory.context, factory.styleCache, drawsMarker, parentMarkerWidth).apply {
+            OrderedListSpan(listStyle, depth, factory.context, factory.styleCache, drawsMarker).apply {
               setItemNumber(styleContext.listItemNumber)
             }
           }
@@ -72,11 +70,9 @@ class ListItemRenderer(
     val prevIndent = styleContext.accumulatedIndent
     styleContext.accumulatedIndent = prevIndent + markerSpan.getLeadingMargin(false)
     try {
-      styleContext.listItemMarkerWidth = markerSpan.getBaselineMarkerWidth()
       factory.renderChildren(node, builder, onLinkPress, onLinkLongPress)
     } finally {
       styleContext.accumulatedIndent = prevIndent
-      styleContext.listItemMarkerWidth = parentMarkerWidth
     }
 
     if (builder.length == start || builder.substring(start).isBlank()) return
