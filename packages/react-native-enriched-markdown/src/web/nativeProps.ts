@@ -37,7 +37,6 @@ export const NATIVE_ONLY_PROP_NAMES: Record<NativeOnlyPropName, true> = {
   onCopyPress: true,
   onLatexError: true,
   enableBlockContextMenu: true,
-  enableCodeBlockWrapToggle: true,
   enableLinkPreview: true,
   selectionHandleColor: true,
   allowFontScaling: true,

@@ -12,8 +12,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy) NSString *nestedBlockquote;
 @property (nonatomic, copy) NSString *tableRow;
 @property (nonatomic, copy) NSString *mathEquation;
-@property (nonatomic, copy) NSString *codeBlockWrap;
-@property (nonatomic, copy) NSString *codeBlockUnwrap;
 @property (nonatomic, copy) NSString *rotorHeadings;
 @property (nonatomic, copy) NSString *rotorLinks;
 @property (nonatomic, copy) NSString *rotorImages;
@@ -32,8 +30,6 @@ template <typename T> static bool ENRMAccessibilityLabelsChanged(const T &oldLab
          oldLabels.blockquote.quote != newLabels.blockquote.quote ||
          oldLabels.blockquote.nestedQuote != newLabels.blockquote.nestedQuote ||
          oldLabels.table.row != newLabels.table.row || oldLabels.math.equation != newLabels.math.equation ||
-         oldLabels.codeBlock.wrap != newLabels.codeBlock.wrap ||
-         oldLabels.codeBlock.unwrap != newLabels.codeBlock.unwrap ||
          oldLabels.rotor.headings != newLabels.rotor.headings || oldLabels.rotor.links != newLabels.rotor.links ||
          oldLabels.rotor.images != newLabels.rotor.images;
 }

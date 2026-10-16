@@ -4,14 +4,11 @@
 #import "StyleConfig.h"
 
 @class MarkdownASTNode;
-@class ENRMAccessibilityLabels;
-@class ENRMCodeBlockContainerView;
 
 NS_ASSUME_NONNULL_BEGIN
 
 typedef void (^ENRMCodeBlockCopyBlock)(NSString *code, NSString *language);
 typedef void (^ENRMCodeBlockPressBlock)(NSString *code, NSString *language);
-typedef void (^ENRMCodeBlockWrapToggleBlock)(ENRMCodeBlockContainerView *view);
 
 @interface ENRMCodeBlockContainerView : RCTUIView
 
@@ -25,23 +22,7 @@ typedef void (^ENRMCodeBlockWrapToggleBlock)(ENRMCodeBlockContainerView *view);
 // instance's measureHeight: reports for the node, without building a view.
 + (CGFloat)measureHeightForCodeBlockNode:(MarkdownASTNode *)node config:(StyleConfig *)config;
 
-// View-free height of the node with `wrapped` on, laid out at the block width.
-+ (CGFloat)measureWrappedHeightForCodeBlockNode:(MarkdownASTNode *)node
-                                         config:(StyleConfig *)config
-                                       maxWidth:(CGFloat)maxWidth;
-
 @property (nonatomic, strong) StyleConfig *config;
-
-// Shows the header wrap toggle next to the copy button (iOS only). Set by the
-// root host from the enableCodeBlockWrapToggle prop.
-@property (nonatomic, assign) BOOL showsWrapButton;
-
-// Wraps long lines at the block width instead of scrolling horizontally.
-@property (nonatomic, assign) BOOL wrapped;
-
-// Fired after the header toggle or the VoiceOver action flips `wrapped`, so the
-// host can remember the choice and re-measure.
-@property (nonatomic, copy, nullable) ENRMCodeBlockWrapToggleBlock onWrapToggle;
 
 // True until the closing fence arrives: highlighting is deferred and copying is
 // disabled, while the header stays visible.
@@ -51,10 +32,6 @@ typedef void (^ENRMCodeBlockWrapToggleBlock)(ENRMCodeBlockContainerView *view);
 // read live at use-time. Set to the root's shared instance at creation so a code
 // block added after a toggle is born current. See ENRMDynamicBlockProps.
 @property (nonatomic, strong) ENRMDynamicBlockProps *dynamicProps;
-
-// Wrap toggle labels (see ENRMAccessibilityLabels); the copy label lives on
-// dynamicProps.
-@property (nonatomic, strong, nullable) ENRMAccessibilityLabels *accessibilityLabels;
 
 // Fired when the code is copied (header button, context-menu Copy, or the
 // VoiceOver copy action); set by the host to bridge up to the JS onCopyPress

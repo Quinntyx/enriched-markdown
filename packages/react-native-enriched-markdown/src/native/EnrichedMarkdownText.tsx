@@ -151,7 +151,6 @@ export const EnrichedMarkdownText = ({
   onCopyPress,
   onLatexError,
   onCodeBlockPress,
-  enableCodeBlockWrapToggle = false,
   enableBlockContextMenu = true,
   enableLinkPreview,
   selectable = true,
@@ -490,7 +489,6 @@ export const EnrichedMarkdownText = ({
           <EnrichedMarkdownNativeComponent
             {...sharedProps}
             {...media.nativeProps}
-            enableCodeBlockWrapToggle={enableCodeBlockWrapToggle}
             style={mediaStyles.native}
             onLayout={media.onNativeLayout}
           />
@@ -502,7 +500,6 @@ export const EnrichedMarkdownText = ({
       <EnrichedMarkdownNativeComponent
         {...sharedProps}
         {...media.nativeProps}
-        enableCodeBlockWrapToggle={enableCodeBlockWrapToggle}
       />
     );
   }

@@ -75,23 +75,6 @@ export interface AccessibilityLabels {
   };
 
   /**
-   * Labels for the fenced code block header's line wrap toggle
-   * (`enableCodeBlockWrapToggle`). iOS + Android.
-   */
-  codeBlock?: {
-    /**
-     * Spoken while the block scrolls horizontally.
-     * @default 'Wrap lines'
-     */
-    wrap?: string;
-    /**
-     * Spoken while the block's lines are wrapped.
-     * @default 'Disable line wrap'
-     */
-    unwrap?: string;
-  };
-
-  /**
    * Labels for the VoiceOver rotor (the secondary jump-by-type navigator on iOS).
    * iOS only — Android has no rotor concept.
    */
@@ -126,10 +109,6 @@ export interface ResolvedAccessibilityLabels {
   };
   math: {
     equation: string;
-  };
-  codeBlock: {
-    wrap: string;
-    unwrap: string;
   };
   rotor: {
     headings: string;

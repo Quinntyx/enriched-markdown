@@ -87,17 +87,14 @@ static inline bool ENRMPropsNeedExactStreamingMeasurement(const PropsT &oldProps
  * `ENRMMeasureSegmentedMarkdownViewFree`); the resolved view is still handed
  * to the block for strategies that can use it. `fontScale` handed to the
  * block is the real multiplier even when streaming skips the cache —
- * rendering must always use it. `wrappedCodeBlocksFingerprint` folds view
- * state outside the props that changes the size (code blocks the user wrapped)
- * into the cache key.
+ * rendering must always use it.
  */
 template <typename PropsT, typename ViewT>
 static inline Size
 ENRMMeasureMarkdownContent(const PropsT &typedProps, const std::shared_ptr<void> &componentViewRef, int receivedCounter,
                            int &lastExactMeasurementCounter, CGSize &lastExactMeasurementSize, MarkdownFlavor flavor,
                            const LayoutContext &layoutContext, const LayoutConstraints &layoutConstraints,
-                           CGSize (^measureUncached)(ViewT *view, CGFloat maxWidth, CGFloat fontScale),
-                           size_t wrappedCodeBlocksFingerprint = 0)
+                           CGSize (^measureUncached)(ViewT *view, CGFloat maxWidth, CGFloat fontScale))
 {
   CGFloat maxWidth = layoutConstraints.maximumSize.width;
 
@@ -123,7 +120,7 @@ ENRMMeasureMarkdownContent(const PropsT &typedProps, const std::shared_ptr<void>
   CGFloat fontScale = ENRMFontScaleForMeasurement(typedProps.allowFontScaling, layoutContext);
 
   if (shouldUseMeasurementCache && !typedProps.markdown.empty()) {
-    auto cacheKey = buildMeasurementCacheKey(typedProps, maxWidth, fontScale, flavor, wrappedCodeBlocksFingerprint);
+    auto cacheKey = buildMeasurementCacheKey(typedProps, maxWidth, fontScale, flavor);
     CachedSize cached;
     if (MeasurementCache::shared().get(cacheKey, cached)) {
       return ENRMClampMeasuredSize(CGSizeMake(cached.width, cached.height), layoutConstraints);
@@ -133,7 +130,7 @@ ENRMMeasureMarkdownContent(const PropsT &typedProps, const std::shared_ptr<void>
   CGSize size = measureUncached(view, maxWidth, fontScale);
 
   if (shouldUseMeasurementCache && !typedProps.markdown.empty()) {
-    auto cacheKey = buildMeasurementCacheKey(typedProps, maxWidth, fontScale, flavor, wrappedCodeBlocksFingerprint);
+    auto cacheKey = buildMeasurementCacheKey(typedProps, maxWidth, fontScale, flavor);
     MeasurementCache::shared().set(cacheKey, {size.width, size.height});
   }
 

@@ -95,9 +95,6 @@ object MeasurementStore {
 
   private val streamingCodeBlockModes = ConcurrentHashMap<Int, CodeBlockStreamingMode>()
 
-  // Top-level code blocks the user wrapped, by document-order index (see EnrichedMarkdown).
-  private val wrappedCodeBlocks = ConcurrentHashMap<Int, Set<Int>>()
-
   private fun resolveFontScalingSettings(
     viewId: Int?,
     props: ReadableMap?,
@@ -150,15 +147,6 @@ object MeasurementStore {
     data.remove(id)
     numberOfLinesByViewId.remove(id)
     ellipsizeModeByViewId.remove(id)
-    wrappedCodeBlocks.remove(id)
-  }
-
-  fun updateWrappedCodeBlocks(
-    viewId: Int,
-    indices: Set<Int>,
-  ) {
-    if (indices.isEmpty()) wrappedCodeBlocks.remove(viewId) else wrappedCodeBlocks[viewId] = indices
-    data.remove(viewId)
   }
 
   fun invalidate(id: Int) {
@@ -503,16 +491,7 @@ object MeasurementStore {
       } else {
         rawMarkdown
       }
-    val wrapped =
-      if (props.getBooleanOrDefault("enableCodeBlockWrapToggle", false)) {
-        id?.let { wrappedCodeBlocks[it] } ?: emptySet()
-      } else {
-        emptySet()
-      }
-    // A Set's hashCode sums its elements, so {} and {0} would collide; the sorted list's doesn't.
-    val propsHash =
-      31 * computePropsHashForMarkdown(markdown, props, allowFontScaling, fontScale, maxFontSizeMultiplier) +
-        wrapped.sorted().hashCode()
+    val propsHash = computePropsHashForMarkdown(markdown, props, allowFontScaling, fontScale, maxFontSizeMultiplier)
 
     // Streaming shortcut: reuse cached size when the filtered content and
     // width are unchanged. When the filter output changes (e.g. a table
@@ -610,7 +589,6 @@ object MeasurementStore {
       val lastIndex = renderedSegments.lastIndex
       var totalHeightPx = 0f
       var maxContentWidthPx = 0f
-      var codeBlockIndex = 0
 
       for ((index, segment) in renderedSegments.withIndex()) {
         val isLastSegment = index == lastIndex
@@ -651,9 +629,7 @@ object MeasurementStore {
 
           is RenderedSegment.CodeBlock -> {
             totalHeightPx += style.codeBlockStyle.marginTop
-            totalHeightPx +=
-              CodeBlockContainerView.measureCodeBlockNodeHeight(segment.node, style, context, width, codeBlockIndex in wrapped)
-            codeBlockIndex++
+            totalHeightPx += CodeBlockContainerView.measureCodeBlockNodeHeight(segment.node, style, context, width)
             maxContentWidthPx = width
             if (includeBottomMargin) {
               totalHeightPx += style.codeBlockStyle.marginBottom
