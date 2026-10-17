@@ -51,6 +51,7 @@ class ListItemRenderer(
           isChecked = isChecked,
           ancestorMarkerOffset = styleContext.ancestorMarkerOffset,
           markerExtraWidth = styleContext.listMarkerExtra,
+          parentMarkerWidth = styleContext.listItemMarkerWidth,
         )
       } else {
         when (listType) {
@@ -61,6 +62,7 @@ class ListItemRenderer(
               factory.context,
               factory.styleCache,
               ancestorMarkerOffset = styleContext.ancestorMarkerOffset,
+              parentMarkerWidth = styleContext.listItemMarkerWidth,
             )
           }
 
@@ -72,6 +74,7 @@ class ListItemRenderer(
               factory.styleCache,
               markerExtraWidth = styleContext.listMarkerExtra,
               ancestorMarkerOffset = styleContext.ancestorMarkerOffset,
+              parentMarkerWidth = styleContext.listItemMarkerWidth,
             ).apply {
               setItemNumber(styleContext.listItemNumber)
             }
@@ -79,13 +82,16 @@ class ListItemRenderer(
         }
       }
 
-    // Nested lists inside this item shift by its extra marker width.
+    // Nested lists inside this item shift by its extra marker width and measure their indent from its column.
     val previousMarkerExtra = styleContext.listItemMarkerExtra
     styleContext.listItemMarkerExtra = span.markerExtraWidth
+    val previousMarkerWidth = styleContext.listItemMarkerWidth
+    styleContext.listItemMarkerWidth = span.baselineMarkerWidth
     try {
       factory.renderChildren(node, builder, onLinkPress, onLinkLongPress)
     } finally {
       styleContext.listItemMarkerExtra = previousMarkerExtra
+      styleContext.listItemMarkerWidth = previousMarkerWidth
     }
 
     if (builder.length == start || builder.substring(start).isBlank()) return
