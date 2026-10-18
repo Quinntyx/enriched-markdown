@@ -144,6 +144,8 @@ class LinkLongPressMovementMethod : ArrowKeyMovementMethod() {
     span: LinkSpan,
   ) {
     cancelLongPress()
+    // The view's own long-press races the runnable below; cancel it so only the link fires.
+    widget.cancelLongPress()
 
     longPressRunnable =
       Runnable {
