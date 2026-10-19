@@ -4382,6 +4382,19 @@ md_analyze_latex_bracket(MD_CTX* ctx, int mark_index)
 
     if((mark->flags & MD_MARK_POTENTIAL_CLOSER)  &&  LATEX_BRACKET_OPENERS.top >= 0) {
         int opener_index = LATEX_BRACKET_OPENERS.top;
+        OFF off;
+        int substantive = false;
+
+        /* Numeric bracket citations are prose, not display equations. */
+        for(off = ctx->marks[opener_index].end; off < mark->beg; off++) {
+            if(!ISWHITESPACE(off) && !ISNEWLINE(off) && !ISDIGIT(off) &&
+               CH(off) != _T(',') && CH(off) != _T('\\'))
+                substantive = true;
+        }
+        if(!substantive) {
+            LATEX_BRACKET_OPENERS.top = -1;
+            return;
+        }
 
         md_pop_openers(ctx, opener_index);
         md_disable_marks(ctx, opener_index+1, mark_index);
@@ -5205,7 +5218,8 @@ md_process_inlines(MD_CTX* ctx, const MD_LINE* lines, ENRMRKD_SIZE n_lines)
                  * above advances off past line->end over the trailing blanks
                  * (CommonMark code-span examples 335, 337, 640). */
                 if(off < mark->beg  &&  ISNEWLINE(off))
-                    ENRMRKD_TEXT(text_type, _T(" "), 1);
+                    /* TeX comments end at a newline; only code spans fold it. */
+                    ENRMRKD_TEXT(text_type, text_type == ENRMRKD_TEXT_LATEXMATH ? _T("\n") : _T(" "), 1);
             } else if(text_type == ENRMRKD_TEXT_HTML) {
                 /* Inside raw HTML, we output the new line verbatim, including
                  * any trailing spaces. */
@@ -5410,6 +5424,7 @@ abort:
 #define MD_BLOCK_CONTAINER          (MD_BLOCK_CONTAINER_OPENER | MD_BLOCK_CONTAINER_CLOSER)
 #define MD_BLOCK_LOOSE_LIST         0x04
 #define MD_BLOCK_SETEXT_HEADER      0x08
+#define MD_BLOCK_CLOSED_FENCE       0x10
 
 struct MD_BLOCK_tag {
     ENRMRKD_BLOCKTYPE type  :  8;
@@ -5571,6 +5586,7 @@ md_process_leaf_block(MD_CTX* ctx, MD_BLOCK* block)
     MD_ATTRIBUTE_BUILD lang_build = { 0 };
     int is_in_tight_list;
     int clean_fence_code_detail = false;
+    int math_fence = false;
     int ret = 0;
 
     /* For large tables check the table density: If it's too low, lets suppress
@@ -5616,6 +5632,9 @@ md_process_leaf_block(MD_CTX* ctx, MD_BLOCK* block)
                 memset(&det.code, 0, sizeof(ENRMRKD_BLOCK_CODE_DETAIL));
                 clean_fence_code_detail = true;
                 MD_CHECK(md_setup_fenced_code_detail(ctx, block, &det.code, &info_build, &lang_build));
+                math_fence = (ctx->parser.flags & ENRMRKD_FLAG_LATEXMATHSPANS) &&
+                             (block->flags & MD_BLOCK_CLOSED_FENCE) &&
+                             det.code.lang.size == 4 && memcmp(det.code.lang.text, _T("math"), 4 * sizeof(CHAR)) == 0;
             }
             break;
 
@@ -5634,7 +5653,9 @@ md_process_leaf_block(MD_CTX* ctx, MD_BLOCK* block)
             break;
     }
 
-    if(!is_in_tight_list  ||  block->type != ENRMRKD_BLOCK_P)
+    if(math_fence)
+        MD_ENTER_SPAN(ENRMRKD_SPAN_LATEXMATH_DISPLAY, NULL);
+    else if(!is_in_tight_list  ||  block->type != ENRMRKD_BLOCK_P)
         MD_ENTER_BLOCK(block->type, (void*) &det);
 
     /* Process the block contents accordingly to is type. */
@@ -5665,7 +5686,9 @@ md_process_leaf_block(MD_CTX* ctx, MD_BLOCK* block)
             break;
     }
 
-    if(!is_in_tight_list  ||  block->type != ENRMRKD_BLOCK_P)
+    if(math_fence)
+        MD_LEAVE_SPAN(ENRMRKD_SPAN_LATEXMATH_DISPLAY, NULL);
+    else if(!is_in_tight_list  ||  block->type != ENRMRKD_BLOCK_P)
         MD_LEAVE_BLOCK(block->type, (void*) &det);
 
 abort:
@@ -6888,6 +6911,7 @@ md_analyze_line(MD_CTX* ctx, OFF beg, OFF* p_end,
              * which we transform into MD_LINE_BLANK. */
             if(line->indent < ctx->code_indent_offset) {
                 if(md_is_closing_code_fence(ctx, CH(pivot_line->beg), off, &off)) {
+                    ctx->current_block->flags |= MD_BLOCK_CLOSED_FENCE;
                     line->type = MD_LINE_BLANK;
                     ctx->last_line_has_list_loosening_effect = false;
                     break;
