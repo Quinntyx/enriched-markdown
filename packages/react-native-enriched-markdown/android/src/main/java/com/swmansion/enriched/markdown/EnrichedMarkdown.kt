@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.uimanager.PixelUtil
@@ -65,6 +66,15 @@ class EnrichedMarkdown(
     // blocks a prop reset cleared), so it has to be asked to measure again.
     REMEASURE,
   }
+
+  private val mathOverlayManagerClass: Class<*>? by lazy {
+    try {
+      Class.forName("com.swmansion.enriched.markdown.views.MathSpanOverlayManager")
+    } catch (_: Exception) {
+      null
+    }
+  }
+  private var mathOverlayManager: Any? = null
 
   private val parser = Parser.shared
   private val mainHandler = Handler(Looper.getMainLooper())
@@ -610,6 +620,23 @@ class EnrichedMarkdown(
   // Trailing code block whose closing fence hasn't streamed in yet, if any.
   private var pendingCodeBlockSegment: RenderedSegment.CodeBlock? = null
 
+  private fun updateMathSpanOverlays() {
+    val clazz = mathOverlayManagerClass ?: return
+    val style = markdownStyle ?: return
+    try {
+      val manager =
+        mathOverlayManager ?: clazz
+          .getConstructor(ViewGroup::class.java)
+          .newInstance(this)
+          .also { mathOverlayManager = it }
+      clazz
+        .getMethod("update", StyleConfig::class.java, DynamicBlockProps::class.java, AccessibilityLabels::class.java)
+        .invoke(manager, style, dynamicProps, accessibilityLabels)
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to update math span overlays", e)
+    }
+  }
+
   private fun applyRenderedSegments(
     renderedSegments: List<RenderedSegment>,
     hasPendingCodeBlock: Boolean,
@@ -636,6 +663,7 @@ class EnrichedMarkdown(
     if (width > 0) {
       val heightBefore = computeSegmentsTotalHeight()
       layoutSegments()
+      updateMathSpanOverlays()
       val heightAfter = computeSegmentsTotalHeight()
 
       if (forceHeight || topologyChanged || heightBefore != heightAfter) {
@@ -823,6 +851,7 @@ class EnrichedMarkdown(
     b: Int,
   ) {
     layoutSegments()
+    updateMathSpanOverlays()
     if (acceptedRevision == documentRevision) publishAssets(acceptedRevision, acceptedAssets)
     publishMediaFrames()
   }
@@ -830,6 +859,7 @@ class EnrichedMarkdown(
   fun onImageLayoutChanged() {
     if (width > 0) {
       layoutSegments()
+      updateMathSpanOverlays()
       requestLayout()
     }
     MeasurementStore.invalidate(id)
@@ -891,6 +921,11 @@ class EnrichedMarkdown(
   }
 
   fun cleanup() {
+    mathOverlayManager?.let { manager ->
+      mathOverlayManagerClass?.getMethod("removeAllOverlays")?.invoke(manager)
+    }
+    mathOverlayManager = null
+
     ++currentRenderId
     mainHandler.removeCallbacksAndMessages(null)
     executor.shutdownNow()

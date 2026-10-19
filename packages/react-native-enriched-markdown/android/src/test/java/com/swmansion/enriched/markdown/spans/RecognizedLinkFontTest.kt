@@ -107,6 +107,32 @@ class RecognizedLinkFontTest {
     )
   }
 
+  @Test
+  fun copiedMathKeepsDelimitersAndConfiguredContextIdentity() {
+    val text = android.text.SpannableString("a\uFFFCb + \uFFFC!")
+    val inline = MathInlineSpan(context, "x_1", 16f, Color.BLACK)
+    val display = MathInlineSpan(context, "y_2", 16f, Color.BLACK, displayMode = true)
+    text.setSpan(inline, 1, 2, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    text.setSpan(display, 6, 7, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    val plain =
+      com.swmansion.enriched.markdown.utils.text.view
+        .SelectionClipboardConfig()
+    assertEquals(
+      "a\$x_1\$b + \$\$y_2\$\$!",
+      com.swmansion.enriched.markdown.utils.text.view
+        .canonicalClipboardText(text, plain),
+    )
+    text.setSpan(LinkSpan("ref:one", null, null, styleCache(), block, context), 0, 3, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    val configured =
+      com.swmansion.enriched.markdown.utils.text.view
+        .SelectionClipboardConfig(mapOf("ref:one" to "[Context](ref:one)"))
+    assertEquals(
+      "[Context](ref:one) + \$\$y_2\$\$!",
+      com.swmansion.enriched.markdown.utils.text.view
+        .canonicalClipboardText(text, configured),
+    )
+  }
+
   private fun styleCache(withLinkFonts: Boolean = true): SpanStyleCache {
     DisplayMetricsHolder.initDisplayMetricsIfNotInitialized(context)
 

@@ -68,6 +68,22 @@
   _spoilerManager.spoilerOverlay = _spoilerOverlay;
 }
 
+- (void)setDynamicProps:(ENRMDynamicBlockProps *)dynamicProps
+{
+  _dynamicProps = dynamicProps;
+#if !TARGET_OS_OSX
+  ((ENRMMarkdownTextView *)_textView).mathDynamicProps = dynamicProps;
+#endif
+}
+
+- (void)setAccessibilityLabels:(ENRMAccessibilityLabels *)accessibilityLabels
+{
+  _accessibilityLabels = accessibilityLabels;
+#if !TARGET_OS_OSX
+  ((ENRMMarkdownTextView *)_textView).mathAccessibilityLabels = accessibilityLabels;
+#endif
+}
+
 - (void)setupLayoutManager
 {
   ENRMAttachLayoutManager(_textView, _config);

@@ -205,6 +205,7 @@ static UIEdgeInsets ENRMBlockquoteContentInsets(StyleConfig *config)
                     createView:^RCTUIView *(ENRMRenderedSegment *segment) {
                       ENRMBlockquoteContainerView *strongSelf = weakSelf;
                       EnrichedMarkdownInternalText *view = [[EnrichedMarkdownInternalText alloc] initWithConfig:config];
+                      view.dynamicProps = strongSelf.dynamicProps;
                       view.lastElementMarginBottom = segment.textResult.lastElementMarginBottom;
                       view.accessibilityInfo = segment.textResult.accessibilityInfo;
                       view.accessibilityLabels = strongSelf.accessibilityLabels;

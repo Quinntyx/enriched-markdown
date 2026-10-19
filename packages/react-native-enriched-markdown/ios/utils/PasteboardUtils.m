@@ -1,4 +1,8 @@
 #import "PasteboardUtils.h"
+#import "ENRMFeatureFlags.h"
+#if ENRICHED_MARKDOWN_MATH
+#import "ENRMMathInlineAttachment.h"
+#endif
 #import "ENRMImageAttachment.h"
 #import "ENRMLinkPillText.h"
 #import "HTMLGenerator.h"
@@ -60,19 +64,39 @@ static NSString *canonicalClipboardText(NSAttributedString *text, StyleConfig *c
 {
   NSDictionary *links = config.selectionClipboard[@"linkTextByUrl"];
   if (![links isKindOfClass:NSDictionary.class])
-    return nil;
+    links = @{};
   NSMutableString *result = [text.string mutableCopy];
   __block BOOL matched = NO;
-  [text enumerateAttribute:NSLinkAttributeName
-                   inRange:NSMakeRange(0, text.length)
-                   options:NSAttributedStringEnumerationReverse
-                usingBlock:^(id value, NSRange range, BOOL *stop) {
-                  NSString *replacement = value ? links[[value description]] : nil;
-                  if ([replacement isKindOfClass:NSString.class]) {
-                    [result replaceCharactersInRange:range withString:replacement];
-                    matched = YES;
-                  }
-                }];
+  [text enumerateAttributesInRange:NSMakeRange(0, text.length)
+                           options:NSAttributedStringEnumerationReverse
+                        usingBlock:^(NSDictionary *attributes, NSRange range, BOOL *stop) {
+                          id link = attributes[NSLinkAttributeName];
+                          NSString *replacement = link ? links[[link description]] : nil;
+                          if ([replacement isKindOfClass:NSString.class]) {
+                            NSRange linkRange;
+                            [text attribute:NSLinkAttributeName
+                                              atIndex:range.location
+                                longestEffectiveRange:&linkRange
+                                              inRange:NSMakeRange(0, text.length)];
+                            // Attribute runs can split a link around math. Copy its source once.
+                            if (range.location != linkRange.location)
+                              return;
+                            range = linkRange;
+                          }
+#if ENRICHED_MARKDOWN_MATH
+                          id attachment = attributes[NSAttachmentAttributeName];
+                          if (![replacement isKindOfClass:NSString.class] &&
+                              [attachment isKindOfClass:ENRMMathInlineAttachment.class]) {
+                            ENRMMathInlineAttachment *math = attachment;
+                            NSString *delimiter = math.displayMode ? @"$$" : @"$";
+                            replacement = [NSString stringWithFormat:@"%@%@%@", delimiter, math.latex, delimiter];
+                          }
+#endif
+                          if ([replacement isKindOfClass:NSString.class]) {
+                            [result replaceCharactersInRange:range withString:replacement];
+                            matched = YES;
+                          }
+                        }];
   return matched ? result : nil;
 }
 

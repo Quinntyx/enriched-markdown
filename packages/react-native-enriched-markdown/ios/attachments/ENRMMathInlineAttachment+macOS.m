@@ -25,7 +25,10 @@
 - (void)renderForMacOS
 {
   RCTUIColor *color = self.mathTextColor ?: [RCTUIColor blackColor];
-  ENRMRaTeXRenderResult *result = [ENRMRaTeXBridge parse:self.latex displayMode:NO fontSize:self.fontSize color:color];
+  ENRMRaTeXRenderResult *result = [ENRMRaTeXBridge parse:self.latex
+                                             displayMode:self.displayMode
+                                                fontSize:self.fontSize
+                                                   color:color];
   if (!result)
     return;
 

@@ -2,6 +2,8 @@
 #import "ENRMUIKit.h"
 
 #import "ENRMLinkContextMenus.h"
+@class ENRMDynamicBlockProps;
+@class ENRMAccessibilityLabels;
 
 #if !TARGET_OS_OSX
 NS_ASSUME_NONNULL_BEGIN
@@ -19,6 +21,8 @@ NS_ASSUME_NONNULL_BEGIN
 /// Copies a selection the way the menu Copy does. Set by the hosting view, which knows the
 /// source Markdown and style; without it the Copy key command writes plain text and RTF only.
 @property (nonatomic, copy, nullable) void (^copySelectionHandler)(NSRange selectedRange);
+@property (nonatomic, strong, nullable) ENRMDynamicBlockProps *mathDynamicProps;
+@property (nonatomic, strong, nullable) ENRMAccessibilityLabels *mathAccessibilityLabels;
 @end
 
 NS_ASSUME_NONNULL_END

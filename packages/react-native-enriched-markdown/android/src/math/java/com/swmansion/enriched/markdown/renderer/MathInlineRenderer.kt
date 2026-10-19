@@ -35,8 +35,9 @@ class MathInlineRenderer(
       MathInlineSpan(
         context = context,
         latex = latex,
-        fontSize = fontSize,
+        fontSize = fontSize * 1.2f,
         textColor = config.style.inlineMathStyle.color,
+        displayMode = node.type == MarkdownASTNode.NodeType.LatexMathDisplay,
         onLatexError = config.onLatexError,
       )
 

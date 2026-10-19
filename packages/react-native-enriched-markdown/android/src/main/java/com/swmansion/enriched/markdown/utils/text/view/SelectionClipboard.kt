@@ -2,6 +2,7 @@ package com.swmansion.enriched.markdown.utils.text.view
 
 import android.text.Spanned
 import com.swmansion.enriched.markdown.spans.LinkSpan
+import com.swmansion.enriched.markdown.spans.MathSourceSpan
 import org.json.JSONObject
 
 /** Optional application metadata for selections containing a configured link. */
@@ -32,7 +33,7 @@ internal fun canonicalClipboardText(
   text: Spanned,
   config: SelectionClipboardConfig,
 ): String? {
-  val replacements =
+  val links =
     text
       .getSpans(0, text.length, LinkSpan::class.java)
       .mapNotNull { link ->
@@ -40,7 +41,17 @@ internal fun canonicalClipboardText(
           Triple(text.getSpanStart(link).coerceAtLeast(0), text.getSpanEnd(link).coerceAtMost(text.length), replacement)
         }
       }.filter { it.second > it.first }
-      .sortedByDescending { it.first }
+  val math =
+    text
+      .getSpans(0, text.length, MathSourceSpan::class.java)
+      .map {
+        val delimiter = if (it.displayMode) "\$\$" else "\$"
+        Triple(text.getSpanStart(it), text.getSpanEnd(it), "$delimiter${it.latexSource}$delimiter")
+      }.filter { it.second > it.first }
+      .filter { formula ->
+        links.none { link -> formula.first < link.second && link.first < formula.second }
+      }
+  val replacements = (links + math).sortedByDescending { it.first }
   if (replacements.isEmpty()) return null
   return StringBuilder(text.toString())
     .apply {

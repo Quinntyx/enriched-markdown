@@ -1,9 +1,11 @@
 #import "ENRMMarkdownTextView.h"
 #import "ENRMLinkPillAttachment.h"
 #import "ENRMLinkPillText.h"
+#import "ENRMMathOverlayManager.h"
 #import "ENRMTextHitTest.h"
 #import "LinkTapUtils.h"
 #import "PasteboardUtils.h"
+#import "TextViewLayoutManager.h"
 
 #if !TARGET_OS_OSX
 @interface ENRMMarkdownTextView () <UIContextMenuInteractionDelegate>
@@ -15,6 +17,10 @@
   // stands in for it: it would show through that image.
   ENRMLinkPillAttachment *_liftedPill;
   NSUInteger _pillMenuIndex;
+#if ENRICHED_MARKDOWN_MATH
+  ENRMMathOverlayManager *_mathOverlayManager;
+  CGSize _lastMathOverlaySize;
+#endif
 }
 
 - (instancetype)initWithFrame:(CGRect)frame textContainer:(NSTextContainer *)textContainer
@@ -33,7 +39,36 @@
 {
   [_pillLift end];
   [super setAttributedText:attributedText];
+#if ENRICHED_MARKDOWN_MATH
+  [_mathOverlayManager setNeedsUpdate];
+#endif
 }
+
+#if ENRICHED_MARKDOWN_MATH
+- (void)setMathAccessibilityLabels:(ENRMAccessibilityLabels *)mathAccessibilityLabels
+{
+  _mathAccessibilityLabels = mathAccessibilityLabels;
+  [_mathOverlayManager setNeedsUpdate];
+  [self setNeedsLayout];
+}
+
+- (void)layoutSubviews
+{
+  [super layoutSubviews];
+  if (!_mathOverlayManager && [self.layoutManager isKindOfClass:TextViewLayoutManager.class]) {
+    StyleConfig *config = [(TextViewLayoutManager *)self.layoutManager config];
+    if (config) {
+      _mathOverlayManager = [[ENRMMathOverlayManager alloc] initWithTextView:self config:config];
+      [_mathOverlayManager setNeedsUpdate];
+    }
+  }
+  if (!CGSizeEqualToSize(self.bounds.size, _lastMathOverlaySize)) {
+    _lastMathOverlaySize = self.bounds.size;
+    [_mathOverlayManager setNeedsUpdate];
+  }
+  [_mathOverlayManager updateIfNeeded];
+}
+#endif
 
 /// The selection with pills expanded, or nil when `range` is not the selection or holds no pill.
 /// Only the selection is rewritten: UIKit also reads arbitrary ranges to find word boundaries,

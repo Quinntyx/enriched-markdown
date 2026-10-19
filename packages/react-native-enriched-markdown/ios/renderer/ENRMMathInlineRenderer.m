@@ -25,7 +25,8 @@
 
   ENRMMathInlineAttachment *attachment = [[ENRMMathInlineAttachment alloc] init];
   attachment.latex = latex;
-  attachment.fontSize = currentFont ? currentFont.pointSize : [_config paragraphFontSize];
+  attachment.displayMode = node.type == MarkdownNodeTypeLatexMathDisplay;
+  attachment.fontSize = (currentFont ? currentFont.pointSize : [_config paragraphFontSize]) * 1.2;
   attachment.mathTextColor = [_config inlineMathColor];
   [context.mathReporters addObject:attachment];
 

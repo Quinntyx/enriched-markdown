@@ -6,6 +6,7 @@ import android.text.SpannableStringBuilder
 import android.util.Log
 import com.swmansion.enriched.markdown.spans.MathMeasureRequest
 import com.swmansion.enriched.markdown.spans.MathMetrics
+import com.swmansion.enriched.markdown.spans.MathRenderMode
 import com.swmansion.enriched.markdown.utils.common.FeatureFlags
 
 fun SpannableStringBuilder.isInlineImage(): Boolean {
@@ -27,12 +28,14 @@ fun Spannable.replaceMathSpansWithPlaceholders(context: Context) {
 
     val fontSizeField = spanClass.getDeclaredField("fontSize").apply { isAccessible = true }
     val latexField = spanClass.getDeclaredField("latex").apply { isAccessible = true }
+    val displayModeField = spanClass.getDeclaredField("displayMode").apply { isAccessible = true }
 
     val requests =
       mathSpans.map { span ->
         MathMeasureRequest(
           fontSize = fontSizeField.getFloat(span),
           latex = latexField.get(span) as String,
+          mode = if (displayModeField.getBoolean(span)) MathRenderMode.Display else MathRenderMode.Text,
         )
       }
 

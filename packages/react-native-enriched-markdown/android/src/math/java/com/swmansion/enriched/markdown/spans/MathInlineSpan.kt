@@ -15,9 +15,29 @@ class MathInlineSpan(
   private val context: Context,
   internal val latex: String,
   internal val fontSize: Float,
-  private val textColor: Int,
+  internal val textColor: Int,
+  override val displayMode: Boolean = false,
   private val onLatexError: LatexErrorReporter? = null,
-) : ReplacementSpan() {
+) : ReplacementSpan(),
+  WidthAwareMathSpan,
+  MathSourceSpan {
+  private var availableWidth = Int.MAX_VALUE
+  override val latexSource get() = latex
+
+  // The native scroll view covers the span only when its formula overflows.
+  internal var overflowsLine = false
+
+  override fun naturalWidth(): Int {
+    prepareResources()
+    return cachedWidth
+  }
+
+  override fun setAvailableWidth(width: Int): Boolean {
+    val changed = availableWidth != width
+    availableWidth = width
+    return changed
+  }
+
   private var cachedBitmap: Bitmap? = null
   private var cachedWidth = 0
   private var mathAscent = 0f
@@ -31,7 +51,7 @@ class MathInlineSpan(
     if (renderFailed) return
 
     try {
-      val displayList = RaTeXEngine.parseBlocking(latex, displayMode = false, color = textColor)
+      val displayList = RaTeXEngine.parseBlocking(latex, displayMode = displayMode, color = textColor)
       val renderer = RaTeXRenderer(displayList, fontSize) { RaTeXFontLoader.getTypeface(it) }
 
       cachedWidth = renderer.widthPx.toInt().coerceAtLeast(1)
@@ -49,8 +69,9 @@ class MathInlineSpan(
       cachedBitmap = bitmap
     } catch (e: Exception) {
       renderFailed = true
-      fallbackText = "\$" + latex + "\$"
-      onLatexError?.report(latex, e.message, false)
+      val delimiter = if (displayMode) "\$\$" else "\$"
+      fallbackText = delimiter + latex + delimiter
+      onLatexError?.report(latex, e.message, displayMode)
     }
   }
 
@@ -73,7 +94,7 @@ class MathInlineSpan(
         descent = paintFm.descent
         bottom = paintFm.bottom
       }
-      return cachedWidth
+      return cachedWidth.coerceAtMost(availableWidth)
     }
 
     fm?.apply {
@@ -84,7 +105,7 @@ class MathInlineSpan(
       bottom = descent
     }
 
-    return cachedWidth
+    return cachedWidth.coerceAtMost(availableWidth)
   }
 
   override fun draw(
@@ -100,13 +121,11 @@ class MathInlineSpan(
   ) {
     prepareResources()
 
-    val bitmap = cachedBitmap
-    if (bitmap != null) {
+    if (overflowsLine) return
+    cachedBitmap?.let {
       val bitmapY = y - ceil(mathAscent)
-      canvas.drawBitmap(bitmap, x, bitmapY, paint)
-      return
+      canvas.drawBitmap(it, x, bitmapY, paint)
     }
-
     fallbackText?.let { fallback ->
       val originalColor = paint.color
       paint.color = textColor

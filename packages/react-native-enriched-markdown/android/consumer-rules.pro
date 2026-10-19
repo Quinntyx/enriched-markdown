@@ -14,7 +14,10 @@
 -keep class com.swmansion.enriched.markdown.spans.MathInlinePlaceholderSpan { *; }
 -keep class com.swmansion.enriched.markdown.spans.MathMeasureHelper { *; }
 -keep class com.swmansion.enriched.markdown.views.MathContainerView { *; }
+-keep class com.swmansion.enriched.markdown.segments.MathContainerView { *; }
+-keep class com.swmansion.enriched.markdown.views.MathSpanOverlayManager { *; }
 -keep class com.swmansion.enriched.markdown.renderer.MathInlineRenderer { *; }
+-keep class com.swmansion.enriched.markdown.renderer.MathDisplayRenderer { *; }
 
 # Reflection: Video container loaded via Class.forName when enableVideo=true.
 -keep class com.swmansion.enriched.markdown.segments.VideoContainerView { *; }
