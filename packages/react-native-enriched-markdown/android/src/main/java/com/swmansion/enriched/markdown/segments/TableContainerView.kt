@@ -18,6 +18,7 @@ import android.text.style.MetricAffectingSpan
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import androidx.core.view.ViewCompat
@@ -27,6 +28,7 @@ import com.swmansion.enriched.markdown.parser.MarkdownASTNode.NodeType
 import com.swmansion.enriched.markdown.renderer.Renderer
 import com.swmansion.enriched.markdown.spans.ImageSpan
 import com.swmansion.enriched.markdown.spans.LinkPillSpan
+import com.swmansion.enriched.markdown.spans.WidthAwareMathSpan
 import com.swmansion.enriched.markdown.styles.StyleConfig
 import com.swmansion.enriched.markdown.styles.TableStyle
 import com.swmansion.enriched.markdown.utils.common.findEnrichedMarkdownAncestor
@@ -39,9 +41,72 @@ import com.swmansion.enriched.markdown.utils.text.view.LinkLongPressMovementMeth
 import com.swmansion.enriched.markdown.utils.text.view.cancelJSTouchForLinkTap
 import com.swmansion.enriched.markdown.utils.text.view.reallowParentInterceptIfLinkReleased
 import com.swmansion.enriched.markdown.views.ContextMenuPopup
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+
+private class TableHorizontalScrollView(
+  context: Context,
+) : HorizontalScrollView(context) {
+  private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+  private var downX = 0f
+  private var downY = 0f
+  private var isArbitratingGesture = false
+  private var isHorizontalGesture = false
+
+  override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+    when (event.actionMasked) {
+      MotionEvent.ACTION_DOWN -> {
+        downX = event.x
+        downY = event.y
+        isHorizontalGesture = false
+        isArbitratingGesture =
+          canScrollHorizontally(-1) || canScrollHorizontally(1)
+        if (isArbitratingGesture) {
+          parent?.requestDisallowInterceptTouchEvent(true)
+        }
+      }
+
+      MotionEvent.ACTION_MOVE -> {
+        if (isArbitratingGesture && !isHorizontalGesture) {
+          val deltaX = abs(event.x - downX)
+          val deltaY = abs(event.y - downY)
+          if (max(deltaX, deltaY) > touchSlop) {
+            if (deltaX > deltaY) {
+              isHorizontalGesture = true
+              parent?.requestDisallowInterceptTouchEvent(true)
+            } else {
+              isArbitratingGesture = false
+              parent?.requestDisallowInterceptTouchEvent(false)
+            }
+          }
+        }
+      }
+
+      MotionEvent.ACTION_UP,
+      MotionEvent.ACTION_CANCEL,
+      -> {
+        parent?.requestDisallowInterceptTouchEvent(false)
+        isArbitratingGesture = false
+        isHorizontalGesture = false
+      }
+    }
+
+    return super.dispatchTouchEvent(event)
+  }
+
+  override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+    if (
+      event.actionMasked == MotionEvent.ACTION_MOVE &&
+      isHorizontalGesture
+    ) {
+      // Claim the gesture immediately and cancel the cell's pending long-press.
+      return true
+    }
+    return super.onInterceptTouchEvent(event)
+  }
+}
 
 class TableContainerView(
   context: Context,
@@ -70,8 +135,9 @@ class TableContainerView(
   var dynamicProps: DynamicBlockProps = DynamicBlockProps()
 
   private val scrollView =
-    HorizontalScrollView(context).apply {
+    TableHorizontalScrollView(context).apply {
       isHorizontalScrollBarEnabled = true
+      isVerticalScrollBarEnabled = false
       overScrollMode = View.OVER_SCROLL_NEVER
       importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
       addView(
@@ -132,7 +198,7 @@ class TableContainerView(
             TableCellData(
               attributedText = renderCellNode(cell, isHeader, align),
               plainText = extractPlainText(cell),
-              markdownText = MarkdownASTSerializer.serializeChildren(cell),
+              markdownText = MarkdownASTSerializer.serializeChildren(cell).replace("\n", "<br>"),
               isHeader = isHeader,
               alignment = align,
             )
@@ -170,7 +236,14 @@ class TableContainerView(
       }
   }
 
-  private fun extractPlainText(node: MarkdownASTNode): String = node.content + node.children.joinToString("") { extractPlainText(it) }
+  private fun extractPlainText(node: MarkdownASTNode): String =
+    if (node.type == NodeType.LineBreak) {
+      "\n"
+    } else if (node.type == NodeType.LatexMathInline || node.type == NodeType.LatexMathDisplay) {
+      MarkdownASTSerializer.serializeNode(node)
+    } else {
+      node.content + node.children.joinToString("") { extractPlainText(it) }
+    }
 
   private fun textAlignmentFromString(align: String?): Layout.Alignment =
     when (align) {
@@ -469,16 +542,21 @@ class TableContainerView(
       texts.forEach { row ->
         row.forEachIndexed { colIndex, cellText ->
           // Images are sized in the row pass below, once the column width is known.
-          prepareWidthAwareSpans(cellText, maxColumnWidth.toInt(), includeImages = false)
+          prepareWidthAwareSpans(cellText, maxColumnWidth.toInt(), includeImages = false, includeMath = false)
           val layout =
             StaticLayout.Builder
               .obtain(cellText, 0, cellText.length, paint, maxColumnWidth.toInt())
               .setIncludePad(false)
               .build()
           val textWidth: Float = (0 until layout.lineCount).maxOfOrNull { line -> layout.getLineWidth(line) } ?: 0f
-          val effectiveWidth = if (cellHasBlockImage(cellText)) maxColumnWidth else ceil(textWidth)
+          val mathWidth =
+            (cellText as? Spanned)
+              ?.getSpans(0, cellText.length, WidthAwareMathSpan::class.java)
+              ?.maxOfOrNull { it.naturalWidth().toFloat() } ?: 0f
+          val columnLimit = max(maxColumnWidth, mathWidth)
+          val effectiveWidth = max(mathWidth, if (cellHasBlockImage(cellText)) maxColumnWidth else ceil(textWidth))
           columnWidths[colIndex] =
-            max(columnWidths[colIndex], min(max(effectiveWidth + horizontalPadding, minColumnWidth), maxColumnWidth + horizontalPadding))
+            max(columnWidths[colIndex], min(max(effectiveWidth + horizontalPadding, minColumnWidth), columnLimit + horizontalPadding))
         }
       }
 
@@ -487,7 +565,7 @@ class TableContainerView(
           row
             .mapIndexed { colIndex, cellText ->
               val contentWidth = (columnWidths[colIndex] - horizontalPadding).toInt().coerceAtLeast(1)
-              prepareWidthAwareSpans(cellText, contentWidth)
+              prepareWidthAwareSpans(cellText, contentWidth, includeMath = false)
               val layout =
                 StaticLayout.Builder
                   .obtain(
