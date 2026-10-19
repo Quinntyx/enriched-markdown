@@ -133,6 +133,30 @@ class RecognizedLinkFontTest {
     )
   }
 
+  @Test
+  fun copiedCodeOmitsVisualPaddingButPreservesContextIdentity() {
+    val text = android.text.SpannableString("\u00A0code\u00A0")
+    text.setSpan(CodePaddingSpan(), 0, 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    text.setSpan(CodePaddingSpan(), 5, 6, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    val plain =
+      com.swmansion.enriched.markdown.utils.text.view
+        .SelectionClipboardConfig()
+    assertEquals(
+      "code",
+      com.swmansion.enriched.markdown.utils.text.view
+        .canonicalClipboardText(text, plain),
+    )
+    text.setSpan(LinkSpan("ref:one", null, null, styleCache(), block, context), 0, 6, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    val configured =
+      com.swmansion.enriched.markdown.utils.text.view
+        .SelectionClipboardConfig(mapOf("ref:one" to "[Context](ref:one)"))
+    assertEquals(
+      "[Context](ref:one)",
+      com.swmansion.enriched.markdown.utils.text.view
+        .canonicalClipboardText(text, configured),
+    )
+  }
+
   private fun styleCache(withLinkFonts: Boolean = true): SpanStyleCache {
     DisplayMetricsHolder.initDisplayMetricsIfNotInitialized(context)
 

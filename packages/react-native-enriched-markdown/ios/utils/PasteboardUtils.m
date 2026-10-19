@@ -1,9 +1,10 @@
 #import "PasteboardUtils.h"
+#import "CodeBackground.h"
 #import "ENRMFeatureFlags.h"
+#import "ENRMImageAttachment.h"
 #if ENRICHED_MARKDOWN_MATH
 #import "ENRMMathInlineAttachment.h"
 #endif
-#import "ENRMImageAttachment.h"
 #import "ENRMLinkPillText.h"
 #import "HTMLGenerator.h"
 #import "MarkdownExtractor.h"
@@ -92,6 +93,8 @@ static NSString *canonicalClipboardText(NSAttributedString *text, StyleConfig *c
                             replacement = [NSString stringWithFormat:@"%@%@%@", delimiter, math.latex, delimiter];
                           }
 #endif
+                          if (!replacement && [attributes[CodePaddingAttributeName] boolValue])
+                            replacement = @"";
                           if ([replacement isKindOfClass:NSString.class]) {
                             [result replaceCharactersInRange:range withString:replacement];
                             matched = YES;

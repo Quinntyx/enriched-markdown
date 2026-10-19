@@ -5,6 +5,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 extern NSString *const CodeAttributeName;
+extern NSString *const CodePaddingAttributeName;
 
 @interface CodeBackground : NSObject
 

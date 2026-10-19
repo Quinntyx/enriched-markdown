@@ -8,6 +8,8 @@
 #import "StyleConfig.h"
 #import <React/RCTFont.h>
 
+static const CGFloat kCodePaddingFontScale = 0.55;
+
 @implementation CodeRenderer
 
 - (void)renderNodeContent:(MarkdownASTNode *)node
@@ -59,10 +61,13 @@
     }
     codeAttributes[CodeAttributeName] = @YES;
 
-    // Store block line height directly for CodeBackground to use
-    codeAttributes[@"BlockLineHeight"] = @(UIFontLineHeight(blockFont));
-
     [output setAttributes:codeAttributes range:range];
+    NSMutableDictionary *paddingAttributes = [codeAttributes mutableCopy];
+    paddingAttributes[NSFontAttributeName] = [codeFont fontWithSize:codeFont.pointSize * kCodePaddingFontScale];
+    paddingAttributes[CodePaddingAttributeName] = @YES;
+    NSAttributedString *padding = [[NSAttributedString alloc] initWithString:@"\u00A0" attributes:paddingAttributes];
+    [output insertAttributedString:padding atIndex:NSMaxRange(range)];
+    [output insertAttributedString:padding atIndex:range.location];
   }
 }
 

@@ -1,6 +1,7 @@
 package com.swmansion.enriched.markdown.utils.text.view
 
 import android.text.Spanned
+import com.swmansion.enriched.markdown.spans.CodePaddingSpan
 import com.swmansion.enriched.markdown.spans.LinkSpan
 import com.swmansion.enriched.markdown.spans.MathSourceSpan
 import org.json.JSONObject
@@ -51,7 +52,13 @@ internal fun canonicalClipboardText(
       .filter { formula ->
         links.none { link -> formula.first < link.second && link.first < formula.second }
       }
-  val replacements = (links + math).sortedByDescending { it.first }
+  val padding =
+    text
+      .getSpans(0, text.length, CodePaddingSpan::class.java)
+      .map { Triple(text.getSpanStart(it), text.getSpanEnd(it), "") }
+      .filter { it.second > it.first }
+      .filter { pad -> links.none { link -> pad.first < link.second && link.first < pad.second } }
+  val replacements = (links + math + padding).sortedByDescending { it.first }
   if (replacements.isEmpty()) return null
   return StringBuilder(text.toString())
     .apply {

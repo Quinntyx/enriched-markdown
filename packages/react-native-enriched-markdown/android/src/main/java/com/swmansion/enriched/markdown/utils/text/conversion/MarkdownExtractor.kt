@@ -8,6 +8,7 @@ import com.swmansion.enriched.markdown.spans.BaseListSpan
 import com.swmansion.enriched.markdown.spans.BaselineShiftSpan
 import com.swmansion.enriched.markdown.spans.BlockquoteSpan
 import com.swmansion.enriched.markdown.spans.CodeBlockSpan
+import com.swmansion.enriched.markdown.spans.CodePaddingSpan
 import com.swmansion.enriched.markdown.spans.CodeSpan
 import com.swmansion.enriched.markdown.spans.EmphasisSpan
 import com.swmansion.enriched.markdown.spans.HeadingSpan
@@ -91,6 +92,13 @@ object MarkdownExtractor {
     state: ExtractionState,
     headingAccumulator: HeadingAccumulator,
   ): Boolean {
+    if (spannable.getSpans(segmentStart, segmentEnd, CodePaddingSpan::class.java).any {
+        spannable.getSpanStart(it) <= segmentStart && spannable.getSpanEnd(it) >= segmentEnd
+      }
+    ) {
+      return true
+    }
+
     // Check for thematic breaks first (uses " \n" as placeholder)
     val thematicBreakSpans = spannable.getSpans(segmentStart, segmentEnd, ThematicBreakSpan::class.java)
     if (thematicBreakSpans.isNotEmpty()) {

@@ -3,9 +3,13 @@
 #import "RenderContext.h"
 
 NSString *const CodeAttributeName = @"Code";
+NSString *const CodePaddingAttributeName = @"ENRMCodePadding";
 
 static const CGFloat kCodeBackgroundCornerRadius = 2.0;
 static const CGFloat kCodeBackgroundBorderWidth = 0.5;
+// Extra chip height beyond the code font's ascent/descent, per side, as a
+// fraction of the code font size.
+static const CGFloat kCodeBackgroundVerticalPaddingScale = 0.1;
 
 @implementation CodeBackground {
   StyleConfig *_config;
@@ -63,7 +67,11 @@ static const CGFloat kCodeBackgroundBorderWidth = 0.5;
   if (glyphRange.location == NSNotFound || glyphRange.length == 0)
     return;
 
-  CGFloat referenceHeight = [self findReferenceHeightForRange:range textStorage:layoutManager.textStorage];
+  // The code run starts and ends with half-size padding characters, so read
+  // the font from an inner character to get the real code font metrics.
+  NSUInteger fontIndex = range.location + (range.length > 2 ? 1 : 0);
+  UIFont *codeFont = [layoutManager.textStorage attribute:NSFontAttributeName atIndex:fontIndex effectiveRange:NULL];
+  CGFloat verticalPadding = codeFont ? codeFont.pointSize * kCodeBackgroundVerticalPaddingScale : 0;
 
   [layoutManager
       enumerateLineFragmentsForGlyphRange:glyphRange
@@ -95,9 +103,18 @@ static const CGFloat kCodeBackgroundBorderWidth = 0.5;
                                                           usedRect.size.width, usedRect.size.height);
                                  }
 
-                                 // Ensure consistent height and no gaps
-                                 if (finalRect.size.height < referenceHeight) {
-                                   finalRect.size.height = referenceHeight;
+                                 if (codeFont) {
+                                   // Size the chip from the code font's ascent/descent around the
+                                   // baseline so the gaps above and below the glyphs are symmetric.
+                                   // The line fragment rect extends too far upward because the
+                                   // paragraph's extra line height sits above the baseline.
+                                   CGFloat baselineY = rect.origin.y +
+                                                       [layoutManager locationForGlyphAtIndex:intersect.location].y +
+                                                       origin.y;
+                                   CGFloat chipTop = baselineY - codeFont.ascender - verticalPadding;
+                                   CGFloat chipBottom = baselineY - codeFont.descender + verticalPadding;
+                                   finalRect.origin.y = chipTop;
+                                   finalRect.size.height = chipBottom - chipTop;
                                  }
 
                                  [self drawBackgroundAndBorders:finalRect
@@ -181,17 +198,6 @@ static const CGFloat kCodeBackgroundBorderWidth = 0.5;
     BezierPathAddLine(path, CGPointMake(CGRectGetMaxX(rect), CGRectGetMaxY(insetRect)));
   }
   return path;
-}
-
-#pragma mark - Helpers
-
-- (CGFloat)findReferenceHeightForRange:(NSRange)range textStorage:(NSTextStorage *)textStorage
-{
-  if (range.location == NSNotFound || range.length == 0 || !textStorage) {
-    return [_config paragraphFontSize] * 1.2;
-  }
-  NSNumber *lineHeightValue = [textStorage attribute:@"BlockLineHeight" atIndex:range.location effectiveRange:NULL];
-  return lineHeightValue ? [lineHeightValue doubleValue] : ([_config paragraphFontSize] * 1.2);
 }
 
 @end
