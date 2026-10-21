@@ -10,24 +10,12 @@ import type {
   LatexErrorEvent,
   CodeBlockPressEvent,
 } from './events';
+import type { LinkPillContent } from './linkPill';
+import type { LinkRecognition } from './linkRecognition';
 
-/** Patterns for `linkRecognition`. An omitted key is off. */
-export interface LinkRecognition {
-  /** Matched inside plain-text runs. */
-  text?: RegExp;
-  /** Must match an inline-code span's whole content. */
-  inlineCode?: RegExp;
-}
-
-export interface LinkPillContent {
-  label?: string;
-  iconUri?: string;
-  /**
-   * Tint for this link's icon. The variant's `pill.iconTintColor` is not applied
-   * to an icon set here through `iconUri`.
-   */
-  iconTintColor?: string;
-}
+// Defined apart so code shared with web can import them: under a `.web`
+// module suffix this file resolves to `MarkdownTextProps.web.ts`.
+export type { LinkPillContent, LinkRecognition };
 
 /**
  * An item of a link's long-press menu. `text` identifies the item, so it must be
