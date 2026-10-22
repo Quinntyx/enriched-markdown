@@ -175,9 +175,16 @@ export const EnrichedMarkdownText = ({
 
   const imageSources = useImageSources(collected.images, resolveImageSource);
 
+  const blockDir = dir === 'ltr' || dir === 'rtl' ? undefined : 'auto';
   const capabilities = useMemo<RenderCapabilities>(
-    () => ({ katex, enableTaskListItemToggle, blockSlots, imageSources }),
-    [katex, enableTaskListItemToggle, blockSlots, imageSources]
+    () => ({
+      katex,
+      enableTaskListItemToggle,
+      blockSlots,
+      imageSources,
+      blockDir,
+    }),
+    [katex, enableTaskListItemToggle, blockSlots, imageSources, blockDir]
   );
 
   const lastChildStyle = useMemo(

@@ -138,9 +138,10 @@ export interface EnrichedMarkdownTextProps extends Omit<
    */
   allowTrailingMargin?: boolean;
   /**
-   * Sets the text direction on the root container.
-   * Useful for RTL languages — CSS logical properties in the renderers
-   * automatically flip blockquote borders, list indentation, etc.
+   * Text direction. By default (or `'auto'`) each paragraph, heading, list,
+   * blockquote and table cell resolves its own direction from its first
+   * strong character, so mixed Arabic/English documents lay out per paragraph.
+   * `'ltr'` / `'rtl'` force one direction for the whole document.
    * @platform web
    */
   dir?: 'ltr' | 'rtl' | 'auto';

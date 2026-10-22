@@ -103,6 +103,11 @@ export interface RenderCapabilities {
    * empty: render the image without a source. Absent ids load the Markdown URL.
    */
   imageSources?: ReadonlyMap<string, string | null>;
+  /**
+   * `dir` for each top-level block. `'auto'` resolves every paragraph from its
+   * first strong character, like native; `undefined` inherits a forced root `dir`.
+   */
+  blockDir: 'auto' | undefined;
 }
 
 export interface RendererProps {

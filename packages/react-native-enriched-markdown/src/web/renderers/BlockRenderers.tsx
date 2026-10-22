@@ -47,17 +47,37 @@ function ParagraphRenderer({
     return <span>{renderChildren(node)}</span>;
   }
 
-  return <p style={styles.paragraph}>{renderChildren(node)}</p>;
-}
-
-function HeadingRenderer({ node, styles, renderChildren }: RendererProps) {
-  const Tag = toHeadingLevel(node.attributes?.level ?? '1');
-  return <Tag style={styles[Tag]}>{renderChildren(node)}</Tag>;
-}
-
-function BlockquoteRenderer({ node, styles, renderChildren }: RendererProps) {
   return (
-    <blockquote style={styles.blockquote}>{renderChildren(node)}</blockquote>
+    <p style={styles.paragraph} dir={capabilities.blockDir}>
+      {renderChildren(node)}
+    </p>
+  );
+}
+
+function HeadingRenderer({
+  node,
+  styles,
+  capabilities,
+  renderChildren,
+}: RendererProps) {
+  const Tag = toHeadingLevel(node.attributes?.level ?? '1');
+  return (
+    <Tag style={styles[Tag]} dir={capabilities.blockDir}>
+      {renderChildren(node)}
+    </Tag>
+  );
+}
+
+function BlockquoteRenderer({
+  node,
+  styles,
+  capabilities,
+  renderChildren,
+}: RendererProps) {
+  return (
+    <blockquote style={styles.blockquote} dir={capabilities.blockDir}>
+      {renderChildren(node)}
+    </blockquote>
   );
 }
 
@@ -65,6 +85,7 @@ function AdmonitionRenderer({
   node,
   style,
   styles,
+  capabilities,
   renderChildren,
 }: RendererProps) {
   const type = (node.attributes?.admonitionType ?? 'note') as AdmonitionType;
@@ -89,7 +110,11 @@ function AdmonitionRenderer({
     lineHeight: 1.2,
   };
   return (
-    <div className={ENRM_ADMONITION_CLASS} style={boxStyle}>
+    <div
+      className={ENRM_ADMONITION_CLASS}
+      style={boxStyle}
+      dir={capabilities.blockDir}
+    >
       <div style={headerStyle}>
         <svg
           width={iconSize}
@@ -100,7 +125,8 @@ function AdmonitionRenderer({
         >
           <path d={ADMONITION_ICON_PATHS[type]} />
         </svg>
-        <span>{ADMONITION_TITLES[type]}</span>
+        {/* The English title must not decide the box's direction. */}
+        <span dir="ltr">{ADMONITION_TITLES[type]}</span>
       </div>
       {renderChildren(node)}
     </div>
@@ -118,7 +144,7 @@ function CodeBlockRenderer({
 
   if (callbacks.onCodeBlockPress == null) {
     return (
-      <pre style={styles.codeBlock} aria-label={label}>
+      <pre style={styles.codeBlock} dir="ltr" aria-label={label}>
         <code style={styles.codeBlockFont}>{renderChildren(node)}</code>
       </pre>
     );
@@ -149,6 +175,7 @@ function CodeBlockRenderer({
   return (
     <pre
       style={{ ...styles.codeBlock, cursor: 'pointer' }}
+      dir="ltr"
       aria-label={label}
       role="button"
       tabIndex={0}
