@@ -28,6 +28,8 @@ import com.swmansion.enriched.markdown.segments.SegmentViewFactory
 import com.swmansion.enriched.markdown.segments.TableContainerView
 import com.swmansion.enriched.markdown.segments.splitASTIntoSegments
 import com.swmansion.enriched.markdown.slots.BlockSlotLayer
+import com.swmansion.enriched.markdown.slots.BlockSlotRevealController
+import com.swmansion.enriched.markdown.slots.BlockSlotRevealTarget
 import com.swmansion.enriched.markdown.slots.EnrichedMarkdownBlockSlotView
 import com.swmansion.enriched.markdown.slots.SlotPlacements
 import com.swmansion.enriched.markdown.spoiler.SpoilerOverlay
@@ -40,6 +42,7 @@ import com.swmansion.enriched.markdown.utils.common.LinkRegexConfig
 import com.swmansion.enriched.markdown.utils.common.MediaStreamingMode
 import com.swmansion.enriched.markdown.utils.common.StreamingMarkdownFilter
 import com.swmansion.enriched.markdown.utils.common.TableStreamingMode
+import com.swmansion.enriched.markdown.utils.common.animatorDurationScale
 import com.swmansion.enriched.markdown.utils.common.isReducedMotionEnabled
 import com.swmansion.enriched.markdown.utils.text.TailFadeInAnimator
 import com.swmansion.enriched.markdown.utils.text.view.ImagePressHost
@@ -72,6 +75,14 @@ class EnrichedMarkdown(
   private var currentRenderId = 0L
   private val dirtyFlags = EnumSet.noneOf(DirtyFlag::class.java)
   var streamingAnimation: Boolean = false
+    set(value) {
+      field = value
+      if (!value) {
+        blockSlotReveal.cancel()
+        applyBlockSlotReveal()
+        if (width > 0) layoutSegments()
+      }
+    }
 
   // used to force a Yoga re-measure when a block image resolves its box height
   var stateWrapper: StateWrapper? = null
@@ -109,6 +120,8 @@ class EnrichedMarkdown(
   // From the shadow node's state: the placed slot children's ids and heights (px).
   private var activeBlockSlotIds: Set<String> = emptySet()
   private var blockSlotHeights: Map<String, Int> = emptyMap()
+  private val blockSlotReveal =
+    BlockSlotRevealController(durationScale = { animatorDurationScale(context) }) { stepBlockSlotReveal() }
   private var selectable: Boolean = true
   private var selectionColor: Int? = null
   private var selectionHandleColor: Int? = null
@@ -176,6 +189,22 @@ class EnrichedMarkdown(
     // The layer stays the last child (applySegments places segments in front of
     // it), so it draws above them and touch lookup reaches the slots first.
     addView(slotLayer, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+    slotLayer.setOnHierarchyChangeListener(
+      object : OnHierarchyChangeListener {
+        // A child mounted mid grow-in is placed and clipped before it draws.
+        override fun onChildViewAdded(
+          parent: View?,
+          child: View?,
+        ) {
+          applyBlockSlotReveal()
+        }
+
+        override fun onChildViewRemoved(
+          parent: View?,
+          child: View?,
+        ) = Unit
+      },
+    )
   }
 
   // The slot layer spans the whole host, so the default order, by position,
@@ -236,7 +265,8 @@ class EnrichedMarkdown(
   fun applySlotPlacements(state: ReadableMap?) {
     val placements = SlotPlacements.from(state)
     blockSlotHeights = placements.heightsPx
-    if (applyBlockSlotHeights(placements.heightsPx) && width > 0) {
+    blockSlotReveal.keepSlotIds(placements.ids)
+    if (updateBlockSlotHeights(placements.heightsPx) && width > 0) {
       layoutSegments()
       requestLayout()
     }
@@ -589,7 +619,7 @@ class EnrichedMarkdown(
     dirtyFlags.clear()
 
     val topologyChanged = applySegments(renderedSegments, reset)
-    applyBlockSlotHeights(blockSlotHeights)
+    updateBlockSlotHeights(blockSlotHeights)
 
     // A just-closed block has unchanged content, so the reconciler reuses it
     // without an update; sync pending here to trigger its deferred highlight.
@@ -765,7 +795,7 @@ class EnrichedMarkdown(
         is RenderedSegment.Video,
         -> animateBlockViewFadeIn(view)
 
-        // The React child fades in on its own terms; the placeholder draws nothing.
+        // The placeholder draws nothing; it grows in once its height arrives.
         is RenderedSegment.BlockSlot -> Unit
       }
     }
@@ -812,6 +842,24 @@ class EnrichedMarkdown(
     slotLayer.layout(0, 0, width, height)
   }
 
+  /** A root slot getting its first height while streaming grows into place ([BlockSlotRevealController]). */
+  private fun updateBlockSlotHeights(heights: Map<String, Int>): Boolean {
+    val changed = applyBlockSlotHeights(heights)
+    blockSlotReveal.noteHeights(heights, segmentViews, streamingAnimation && !isReducedMotionEnabled(context))
+    applyBlockSlotReveal()
+    return changed
+  }
+
+  private fun applyBlockSlotReveal() {
+    val targets = (0 until slotLayer.childCount).mapNotNull { slotLayer.getChildAt(it) as? BlockSlotRevealTarget }
+    blockSlotReveal.apply(segmentViews, targets)
+  }
+
+  private fun stepBlockSlotReveal() {
+    applyBlockSlotReveal()
+    if (width > 0) layoutSegments()
+  }
+
   fun onImageLayoutChanged() {
     if (width > 0) {
       layoutSegments()
@@ -825,6 +873,7 @@ class EnrichedMarkdown(
   }
 
   fun cleanup() {
+    blockSlotReveal.reset()
     executor.shutdownNow()
   }
 
