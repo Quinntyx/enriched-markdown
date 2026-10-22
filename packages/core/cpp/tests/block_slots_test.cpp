@@ -1,15 +1,19 @@
 /*
  * Checks the block slot collector: which blocks are eligible, the id scheme and
- * its stability under appends and inline edits, and the shared hash fixture. See
+ * its stability under appends and inline edits, the shared hash fixture, and
+ * the attributes a host converter adds through AstOverlay. See
  * scripts/test-core-parser.sh.
  */
+#include "AstOverlay.hpp"
 #include "BlockSlots.hpp"
 #include "MD4CParser.hpp"
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <string>
+#include <unordered_set>
 
 namespace {
 
@@ -25,6 +29,18 @@ void check(bool condition, const std::string &what) {
 std::shared_ptr<Markdown::MarkdownASTNode> parse(const std::string &markdown) {
   Markdown::MD4CParser parser;
   return parser.parse(markdown, Markdown::Md4cFlags{}, true);
+}
+
+// The attributes AstOverlay adds, by node, after a walk like a host converter's.
+std::map<const Markdown::MarkdownASTNode *, std::map<std::string, std::string>>
+overlaid(const Markdown::MarkdownASTNode &root, const Markdown::AstOverlay &overlay) {
+  std::map<const Markdown::MarkdownASTNode *, std::map<std::string, std::string>> out;
+  auto walk = [&](const Markdown::MarkdownASTNode &node, auto &&self) -> void {
+    overlay.forEachAttribute(node, [&](const char *key, const std::string &value) { out[&node][key] = value; });
+    overlay.forEachChild(node, [&](const std::shared_ptr<Markdown::MarkdownASTNode> &child) { self(*child, self); });
+  };
+  walk(root, walk);
+  return out;
 }
 
 std::string suffix(const std::string &id) {
@@ -141,6 +157,81 @@ int main(int argc, char **argv) {
   check(slotCount("https://e.com/q3.pdf\n") == 1, "a bare url paragraph is a link slot");
   check(slotCount("See [docs](https://e.com)\n") == 0, "a link inside text is no slot");
   check(slotCount("- [docs](https://e.com)\n") == 0, "a link in a list item is no slot");
+
+  // The overlay adds only the active ids, on the block node, and image ids on demand.
+  Markdown::ParsedDocument document{root, collected};
+  std::unordered_set<std::string> active{slots[0].id, slots[4].id};
+  auto added = overlaid(*root, Markdown::AstOverlay(document, active, false, {}));
+  int withIds = 0;
+  for (const auto &child : root->children) {
+    auto attributes = added.find(child.get());
+    if (attributes == added.end())
+      continue;
+    withIds++;
+    if (child->type == Markdown::NodeType::Paragraph) {
+      check(attributes->second[Markdown::kBlockSlotIdAttribute] == slots[0].id, "the image paragraph gets the slot id");
+      check(attributes->second[Markdown::kBlockSlotKindAttribute] == "image", "image kind attribute");
+    } else {
+      check(child->type == Markdown::NodeType::Video &&
+                attributes->second[Markdown::kBlockSlotIdAttribute] == slots[4].id,
+            "the video gets the slot id");
+      check(attributes->second[Markdown::kBlockSlotKindAttribute] == "video", "video kind attribute");
+    }
+  }
+  check(withIds == 2 && added.size() == 2,
+        "exactly the active root blocks get ids (got " + std::to_string(withIds) + ")");
+
+  std::unordered_set<std::string> none;
+  auto imageIds = overlaid(*root, Markdown::AstOverlay(document, none, true, {}));
+  check(imageIds.size() == images.size(), "every image gets its occurrence id");
+  const auto *firstImage = root->children[1]->children[0].get();
+  check(imageIds[firstImage][Markdown::kImageOccurrenceIdAttribute] == images[0].id, "images carry their id");
+  check(root->children[1]->attributes.count(Markdown::kBlockSlotIdAttribute) == 0, "the shared tree is not written to");
+
+  // A link block adds "link" on its paragraph.
+  auto linkRoot = parse("[Q3 report.pdf](https://e.com/q3.pdf)\n");
+  Markdown::ParsedDocument linkDocument{linkRoot, Markdown::collect(*linkRoot)};
+  std::unordered_set<std::string> linkActive{linkDocument.blocks.slots[0].id};
+  auto linkAdded = overlaid(*linkRoot, Markdown::AstOverlay(linkDocument, linkActive, false, {}));
+  check(linkAdded[linkRoot->children[0].get()][Markdown::kBlockSlotKindAttribute] == "link", "link kind attribute");
+
+  // Recognized links replace the text they cover only in the overlay's view.
+  auto textRoot = parse("Ticket TICKET-1 is open\n");
+  Markdown::TextLinkMatchers matchers;
+  matchers.text = [](const std::vector<std::string_view> &runs) {
+    std::vector<std::vector<Markdown::TextRange>> all;
+    for (auto run : runs) {
+      size_t at = run.find("TICKET-1");
+      all.push_back(at == std::string_view::npos ? std::vector<Markdown::TextRange>{}
+                                                 : std::vector<Markdown::TextRange>{{at, at + 8}});
+    }
+    return all;
+  };
+  Markdown::ParsedDocument textDocument{textRoot, Markdown::collect(*textRoot)};
+  Markdown::AstOverlay textOverlay(textDocument, none, false, Markdown::recognizeTextLinks(*textRoot, matchers));
+  std::vector<Markdown::NodeType> seen;
+  textOverlay.forEachChild(*textRoot->children[0], [&](const auto &child) { seen.push_back(child->type); });
+  check(seen.size() == 3 && seen[1] == Markdown::NodeType::Link, "the overlay shows text, link, text");
+  check(textRoot->children[0]->children.size() == 1, "the parsed paragraph keeps its one text node");
+
+  // A recognized code span becomes a link around the very Code node it replaces.
+  auto codeRoot = parse("See `TICKET-2` now\n");
+  Markdown::TextLinkMatchers codeMatchers;
+  codeMatchers.inlineCode = [](const std::vector<std::string_view> &spans) {
+    std::vector<uint8_t> matched;
+    for (auto span : spans)
+      matched.push_back(span == "TICKET-2");
+    return matched;
+  };
+  Markdown::ParsedDocument codeDocument{codeRoot, Markdown::collect(*codeRoot)};
+  Markdown::AstOverlay codeOverlay(codeDocument, none, false, Markdown::recognizeTextLinks(*codeRoot, codeMatchers));
+  std::vector<Markdown::NodeType> linkChildren;
+  codeOverlay.forEachChild(*codeRoot->children[0], [&](const auto &child) {
+    if (child->type == Markdown::NodeType::Link)
+      codeOverlay.forEachChild(*child, [&](const auto &inner) { linkChildren.push_back(inner->type); });
+  });
+  check(linkChildren.size() == 1 && linkChildren[0] == Markdown::NodeType::Code,
+        "a recognized code link keeps its Code child instead of replacing it again");
 
   // The shared hash fixture pins the id hash for the web twin.
   if (argc > 1) {
