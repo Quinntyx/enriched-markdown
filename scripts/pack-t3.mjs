@@ -38,6 +38,7 @@ try {
     'lib',
     'android',
     'ios',
+    'common',
     'jest.js',
     'jest.d.ts',
     'react-native.config.js',
@@ -71,9 +72,6 @@ try {
   cpSync(path.join(root, 'docs-md'), path.join(staging, 'docs'), {
     recursive: true,
   });
-  cpSync(path.join(source, 'docs'), path.join(staging, 'docs'), {
-    recursive: true,
-  });
   const pkg = JSON.parse(
     readFileSync(path.join(source, 'package.json'), 'utf8')
   );
@@ -90,7 +88,7 @@ try {
       {
         repository: 'https://github.com/pingdotgg/enriched-markdown',
         commit: git('rev-parse', 'HEAD'),
-        upstreamCommit: '2547e709d759eda2ee3a5c6d9d37b51f8fa51321',
+        upstreamCommit: '69c3330dd6d75cacd8d046f4e0c4b8fe5c42a6e1',
         version: pkg.version,
       },
       null,
