@@ -133,7 +133,6 @@ object TaskListTapUtils {
         drawsMarker = old.drawsMarker,
         ancestorMarkerOffset = old.ancestorMarkerOffset,
         markerExtraWidth = old.markerExtraWidth,
-        parentMarkerWidth = old.parentMarkerWidth,
       )
 
     // Layout draws leading margins in insertion order, and a re-added span moves to the end of it.

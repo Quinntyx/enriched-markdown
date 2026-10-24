@@ -39,7 +39,6 @@ class ListItemRenderer(
 
     val depth = styleContext.listDepth - 1
     val listStyle = config.style.listStyle
-    val parentMarkerWidth = styleContext.listItemMarkerWidth
     val span =
       if (isTask) {
         TaskListSpan(
@@ -52,7 +51,6 @@ class ListItemRenderer(
           isChecked = isChecked,
           ancestorMarkerOffset = styleContext.ancestorMarkerOffset,
           markerExtraWidth = styleContext.listMarkerExtra,
-          parentMarkerWidth = parentMarkerWidth,
         )
       } else {
         when (listType) {
@@ -63,7 +61,6 @@ class ListItemRenderer(
               factory.context,
               factory.styleCache,
               ancestorMarkerOffset = styleContext.ancestorMarkerOffset,
-              parentMarkerWidth = parentMarkerWidth,
             )
           }
 
@@ -75,7 +72,6 @@ class ListItemRenderer(
               factory.styleCache,
               markerExtraWidth = styleContext.listMarkerExtra,
               ancestorMarkerOffset = styleContext.ancestorMarkerOffset,
-              parentMarkerWidth = parentMarkerWidth,
             ).apply {
               setItemNumber(styleContext.listItemNumber)
             }
@@ -83,15 +79,13 @@ class ListItemRenderer(
         }
       }
 
-    // Nested lists inside this item shift by its extra marker width and measure their indent from its column.
+    // Nested lists inside this item shift by its extra marker width.
     val previousMarkerExtra = styleContext.listItemMarkerExtra
     styleContext.listItemMarkerExtra = span.markerExtraWidth
-    styleContext.listItemMarkerWidth = span.getBaselineMarkerWidth()
     try {
       factory.renderChildren(node, builder, onLinkPress, onLinkLongPress)
     } finally {
       styleContext.listItemMarkerExtra = previousMarkerExtra
-      styleContext.listItemMarkerWidth = parentMarkerWidth
     }
 
     if (builder.length == start || builder.substring(start).isBlank()) return

@@ -102,11 +102,8 @@ object MarkdownRenderTestSupport {
     )
   }
 
-  /** [defaultStyle] with its [ListStyle] and, when given, its [TaskListStyle] replaced. */
-  fun styleWithList(
-    listStyle: ListStyle,
-    taskListStyle: TaskListStyle? = null,
-  ): StyleConfig = copyOfDefault(listStyle = listStyle, taskListStyle = taskListStyle)
+  /** [defaultStyle] with only its [ListStyle] replaced. */
+  fun styleWithList(listStyle: ListStyle): StyleConfig = copyOfDefault(listStyle = listStyle)
 
   /** [defaultStyle] with only its [TaskListStyle] replaced. */
   fun styleWithTaskList(taskListStyle: TaskListStyle): StyleConfig = copyOfDefault(taskListStyle = taskListStyle)
