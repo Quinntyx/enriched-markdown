@@ -175,6 +175,9 @@ class StyleConfig(
 
   var imageRequestHeaders: Map<String, String> = emptyMap()
 
+  /** Per-image request overrides keyed by `imageOccurrenceId` (the `imageSources` prop). */
+  var imageSourceOverrides: Map<String, ImageSourceOverride> = emptyMap()
+
   /** Per-link pill content keyed by exact URL; content, so it lives outside the style map. */
   var linkPillContent: Map<String, LinkPillContent> = emptyMap()
 
@@ -360,6 +363,7 @@ class StyleConfig(
       subscriptStyle == other.subscriptStyle &&
       highlightStyle == other.highlightStyle &&
       imageRequestHeaders == other.imageRequestHeaders &&
+      imageSourceOverrides == other.imageSourceOverrides &&
       linkPillContent == other.linkPillContent
   }
 
@@ -389,6 +393,7 @@ class StyleConfig(
     result = 31 * result + subscriptStyle.hashCode()
     result = 31 * result + highlightStyle.hashCode()
     result = 31 * result + imageRequestHeaders.hashCode()
+    result = 31 * result + imageSourceOverrides.hashCode()
     result = 31 * result + linkPillContent.hashCode()
     return result
   }

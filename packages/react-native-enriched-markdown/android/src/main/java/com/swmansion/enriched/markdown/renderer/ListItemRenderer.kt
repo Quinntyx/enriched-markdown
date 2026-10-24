@@ -52,6 +52,7 @@ class ListItemRenderer(
           drawsMarker = drawsMarker,
           ancestorMarkerOffset = styleContext.ancestorMarkerOffset,
           markerExtraWidth = styleContext.listMarkerExtra,
+          parentMarkerWidth = styleContext.listItemMarkerWidth,
         )
       } else {
         when (listType) {
@@ -63,6 +64,7 @@ class ListItemRenderer(
               factory.styleCache,
               drawsMarker,
               ancestorMarkerOffset = styleContext.ancestorMarkerOffset,
+              parentMarkerWidth = styleContext.listItemMarkerWidth,
             )
           }
 
@@ -75,6 +77,7 @@ class ListItemRenderer(
               drawsMarker,
               markerExtraWidth = styleContext.listMarkerExtra,
               ancestorMarkerOffset = styleContext.ancestorMarkerOffset,
+              parentMarkerWidth = styleContext.listItemMarkerWidth,
             ).apply {
               setItemNumber(styleContext.listItemNumber)
             }
@@ -86,6 +89,8 @@ class ListItemRenderer(
 
     val previousMarkerExtra = styleContext.listItemMarkerExtra
     styleContext.listItemMarkerExtra = markerSpan.markerExtraWidth
+    val previousMarkerWidth = styleContext.listItemMarkerWidth
+    styleContext.listItemMarkerWidth = markerSpan.baselineMarkerWidth
     val prevIndent = styleContext.accumulatedIndent
     styleContext.accumulatedIndent = prevIndent + markerSpan.getLeadingMargin(false)
     try {
@@ -93,6 +98,7 @@ class ListItemRenderer(
     } finally {
       styleContext.accumulatedIndent = prevIndent
       styleContext.listItemMarkerExtra = previousMarkerExtra
+      styleContext.listItemMarkerWidth = previousMarkerWidth
     }
 
     if (builder.length == start || builder.substring(start).isBlank()) return
