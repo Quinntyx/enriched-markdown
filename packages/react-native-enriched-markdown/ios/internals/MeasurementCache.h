@@ -1,7 +1,5 @@
 #pragma once
-#import "ENRMImageSources.h"
 
-#import "ENRMDocumentAssets.h"
 #include <CoreGraphics/CGBase.h>
 #include <React/RCTUtils.h>
 #include <list>
@@ -216,8 +214,7 @@ inline MeasurementCacheKey buildMeasurementCacheKey(const PropsType &props, CGFl
       .md4cFlagsHardSoftBreaks = props.md4cFlags.hardSoftBreaks,
       .md4cFlagsPreserveBlankLines = props.md4cFlags.preserveBlankLines,
       .md4cFlagsAdmonitions = props.md4cFlags.admonitions,
-      .styleFingerprint = computeStyleFingerprint(props.markdownStyle) ^ ENRMImageSourcesFingerprint(props) ^
-                          ENRMMediaPropsFingerprint(props),
+      .styleFingerprint = computeStyleFingerprint(props.markdownStyle),
       .linkPillContentFingerprint = computeLinkPillContentFingerprint(props.linkPillContent),
       .wrappedCodeBlocksFingerprint = wrappedCodeBlocksFingerprint,
       .fontScale = fontScale,

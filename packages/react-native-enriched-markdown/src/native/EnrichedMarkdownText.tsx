@@ -1,5 +1,3 @@
-import { StyleSheet, View } from 'react-native';
-import { useMediaSlots } from './useMediaSlots';
 import { useMemo, useCallback, useRef, useEffect } from 'react';
 import EnrichedMarkdownTextNativeComponent from '../EnrichedMarkdownTextNativeComponent';
 import type { MarkdownStyleInternal } from '../EnrichedMarkdownTextNativeComponent';
@@ -142,10 +140,7 @@ export const EnrichedMarkdownText = ({
   onLinkPress,
   onLinkLongPress,
   onImagePress,
-  renderMedia,
-  onDocumentAssets,
   selectionClipboard,
-  resolveImageSource,
   onTaskListItemPress,
   enableTaskListItemToggle = true,
   onCopyPress,
@@ -466,42 +461,10 @@ export const EnrichedMarkdownText = ({
     ...rest,
   };
 
-  const media = useMediaSlots(
-    markdown,
-    JSON.stringify([
-      normalizedMd4cFlags,
-      streamingAnimation,
-      normalizedStreamingConfig,
-      flavor,
-      nativeLinkRecognition,
-      !!renderMedia,
-      !!onDocumentAssets,
-      !!resolveImageSource,
-    ]),
-    flavor === 'github' ? renderMedia : undefined,
-    flavor === 'github' ? onDocumentAssets : undefined,
-    flavor === 'github' ? resolveImageSource : undefined
-  );
-
   if (flavor === 'github') {
-    if (renderMedia) {
-      return (
-        <View style={containerStyle} onLayout={rest.onLayout}>
-          <EnrichedMarkdownNativeComponent
-            {...sharedProps}
-            {...media.nativeProps}
-            enableCodeBlockWrapToggle={enableCodeBlockWrapToggle}
-            style={mediaStyles.native}
-            onLayout={media.onNativeLayout}
-          />
-          {media.slots}
-        </View>
-      );
-    }
     return (
       <EnrichedMarkdownNativeComponent
         {...sharedProps}
-        {...media.nativeProps}
         enableCodeBlockWrapToggle={enableCodeBlockWrapToggle}
       />
     );
@@ -511,5 +474,3 @@ export const EnrichedMarkdownText = ({
 };
 
 export default EnrichedMarkdownText;
-
-const mediaStyles = StyleSheet.create({ native: { alignSelf: 'stretch' } });

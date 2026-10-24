@@ -19,8 +19,6 @@ import androidx.core.graphics.drawable.toDrawable
 import androidx.core.graphics.withClip
 import androidx.core.graphics.withSave
 import com.swmansion.enriched.markdown.EnrichedMarkdownText
-import com.swmansion.enriched.markdown.media.ImageSourceTransport
-import com.swmansion.enriched.markdown.media.mergeImageRequestHeaders
 import com.swmansion.enriched.markdown.styles.StyleConfig
 import com.swmansion.enriched.markdown.utils.common.findEnrichedMarkdownAncestor
 import com.swmansion.enriched.markdown.utils.text.ImageCache
@@ -37,7 +35,6 @@ class ImageSpan(
   styleConfig: StyleConfig,
   val isInline: Boolean = false,
   val altText: String = "",
-  imageSource: ImageSourceTransport? = null,
 ) : AndroidImageSpan(
     Color.TRANSPARENT.toDrawable(),
     imageUrl,
@@ -64,10 +61,8 @@ class ImageSpan(
       else -> height
     }
 
-  private val transportUri: String? = if (imageSource == null) imageUrl else imageSource.uri
-  private val requestHeaders: Map<String, String> =
-    mergeImageRequestHeaders(styleConfig.imageRequestHeaders, imageSource?.headers.orEmpty())
-  private val requestKey: String? = transportUri?.let { ImageCache.requestKey(it, requestHeaders) }
+  private val requestHeaders: Map<String, String> = styleConfig.imageRequestHeaders
+  private val requestKey: String = ImageCache.requestKey(imageUrl, requestHeaders)
 
   private var cachedWidth: Int = 0
   private var viewRef: WeakReference<TextView>? = null
@@ -76,7 +71,7 @@ class ImageSpan(
 
   private fun intrinsicImageSize(): Pair<Int, Int> {
     sourceDrawable?.let { return it.intrinsicWidth to it.intrinsicHeight }
-    val cached = requestKey?.let { ImageCache.getOriginal(it) } ?: return 0 to 0
+    val cached = ImageCache.getOriginal(imageUrl) ?: return 0 to 0
     return cached.width to cached.height
   }
 
@@ -112,21 +107,19 @@ class ImageSpan(
   }
 
   private fun loadImage() {
-    val uri = transportUri ?: return
-    val key = requestKey ?: return
-    val scheme = Uri.parse(uri).scheme?.lowercase()
+    val scheme = Uri.parse(imageUrl).scheme?.lowercase()
     if (scheme == "http" || scheme == "https") {
-      ImageDownloader.download(context, uri, requestHeaders) { bitmap ->
+      ImageDownloader.download(context, imageUrl, requestHeaders) { bitmap ->
         if (bitmap != null) {
           sourceDrawable = bitmap.toDrawable(context.resources)
           wrapAndAssignDrawable()
         }
       }
     } else {
-      val cached = ImageCache.getOriginal(key)
-      val bitmap = cached ?: LocalImageLoader.load(context, uri)
+      val cached = ImageCache.getOriginal(imageUrl)
+      val bitmap = cached ?: LocalImageLoader.load(context, imageUrl)
       if (bitmap != null) {
-        if (cached == null) ImageCache.putOriginal(key, bitmap)
+        if (cached == null) ImageCache.putOriginal(imageUrl, bitmap)
         sourceDrawable = bitmap.toDrawable(context.resources)
         wrapAndAssignDrawable()
       }
@@ -145,8 +138,7 @@ class ImageSpan(
 
     boxHeight = resolveBoxHeight(targetWidth)
 
-    val key = requestKey ?: return
-    val cachedBitmap = ImageCache.getProcessed(key, targetWidth, boxHeight, borderRadiusPx, resizeMode)
+    val cachedBitmap = ImageCache.getProcessed(requestKey, targetWidth, boxHeight, borderRadiusPx, resizeMode)
 
     if (cachedBitmap != null) {
       loadedDrawable =
@@ -163,7 +155,7 @@ class ImageSpan(
           isBlockImage = !isInline,
           resizeMode = resizeMode,
           legacySizing = legacySizing,
-          cacheKey = CacheKey(key, targetWidth, boxHeight, borderRadiusPx, resizeMode),
+          cacheKey = CacheKey(requestKey, targetWidth, boxHeight, borderRadiusPx, resizeMode),
         )
     }
     requestReflow()

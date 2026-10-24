@@ -185,7 +185,6 @@ android {
     buildConfigField "boolean", "ENABLE_CODE_HIGHLIGHT", "${codeHighlightActive}"
   }
 
-
   buildFeatures {
     buildConfig true
   }

@@ -1,6 +1,4 @@
 #pragma once
-#import "ENRMDocumentAssets.h"
-#import "ENRMImageSources.h"
 
 #import "ENRMBlockquoteContainerView.h"
 #import "ENRMCodeBlockContainerView.h"
@@ -286,14 +284,6 @@ static inline CGSize ENRMMeasureSegmentedMarkdownViewFree(const PropsT &typedPro
     ENRMWritingDirectionMode writingDirectionMode =
         ENRMResolveWritingDirectionMode([[NSString alloc] initWithUTF8String:typedProps.writingDirection.c_str()]);
 
-    BOOL resolveSources = typedProps.enableImageSourceResolution && typedProps.isGFM;
-    NSArray *assets = (resolveSources || typedProps.enableMediaSlots)
-                          ? ENRMPrepareDocumentAssets(ast, typedProps.enableMediaSlots,
-                                                      typedProps.mediaOverridesRevision == typedProps.documentRevision,
-                                                      ENRMMediaOverridesFromProps(typedProps))
-                          : @[];
-    ENRMPrepareImageSources(ast, assets, resolveSources, ENRMImageSourcesAccepted(typedProps),
-                            ENRMImageSourcesFromProps(typedProps));
     NSArray<ENRMRenderedSegment *> *segments =
         ENRMRenderSegmentsFromAST(ast, config, typedProps.allowTrailingMargin, typedProps.allowFontScaling,
                                   typedProps.maxFontSizeMultiplier, lineBreakStrategy, /*blockquoteContent*/ NO);
@@ -317,14 +307,7 @@ static inline CGSize ENRMMeasureSegmentedMarkdownViewFree(const PropsT &typedPro
       const BOOL isLast = (i == lastIndex);
       const BOOL shouldAddBottomMargin = (!isLast || typedProps.allowTrailingMargin);
 
-      if (segment.kind == ENRMSegmentKindMediaSlot && segment.mediaSlotNode) {
-        BOOL video = [segment.mediaSlotNode.attributes[@"_enrmMediaKind"] isEqualToString:@"video"];
-        yOffset += video ? config.videoMarginTop : config.imageMarginTop;
-        yOffset += ENRMMediaSlotHeight(segment.mediaSlotNode, maxWidth, config);
-        maxContentWidth = maxWidth;
-        if (shouldAddBottomMargin)
-          yOffset += video ? config.videoMarginBottom : config.imageMarginBottom;
-      } else if (segment.kind == ENRMSegmentKindText && segment.textResult) {
+      if (segment.kind == ENRMSegmentKindText && segment.textResult) {
         CGSize textSize = ENRMMeasureAttributedTextViewFree(
             segment.textResult.attributedText, maxWidth, config, shouldAddBottomMargin,
             segment.textResult.lastElementMarginBottom, pointScaleFactor, 0, NSLineBreakByWordWrapping, YES);

@@ -2,7 +2,6 @@
 #import "ENRMBlockquoteContainerView.h"
 #import "ENRMCodeBlockContainerView.h"
 #import "ENRMCodeBlockWrapState.h"
-#import "ENRMDocumentAssets.h"
 #import "ENRMFeatureFlags.h"
 #import "ENRMTextRenderer.h"
 #import "ENRMViewFreeMeasurement.h"
@@ -32,13 +31,7 @@ CGFloat ENRMMeasureSegmentsHeightViewFree(NSArray<ENRMRenderedSegment *> *segmen
     const BOOL isLast = (i == lastIndex);
     const BOOL shouldAddBottomMargin = (!isLast || allowTrailingMargin);
 
-    if (segment.kind == ENRMSegmentKindMediaSlot && segment.mediaSlotNode) {
-      BOOL video = [segment.mediaSlotNode.attributes[@"_enrmMediaKind"] isEqualToString:@"video"];
-      totalHeight += video ? config.videoMarginTop : config.imageMarginTop;
-      totalHeight += ENRMMediaSlotHeight(segment.mediaSlotNode, contentWidth, config);
-      if (shouldAddBottomMargin)
-        totalHeight += video ? config.videoMarginBottom : config.imageMarginBottom;
-    } else if (segment.kind == ENRMSegmentKindText && segment.textResult) {
+    if (segment.kind == ENRMSegmentKindText && segment.textResult) {
       // GFM segments are never line-clamped (numberOfLines is a no-op for GFM).
       CGSize textSize = ENRMMeasureAttributedTextViewFree(
           segment.textResult.attributedText, contentWidth, config, shouldAddBottomMargin,

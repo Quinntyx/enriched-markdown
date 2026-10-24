@@ -96,35 +96,15 @@ object SegmentHeightMeasurer {
               style,
               context,
               contentWidthPx,
-              segment.mediaSlots,
-              segment.assets,
               wrapCursor,
             )
         }
 
         is RenderedSegment.Video -> {
-          totalHeightPx +=
-            segment.mediaSlot?.let {
-              com.swmansion.enriched.markdown.media.MediaSlotView
-                .marginTop(it, style)
-                .let { margin -> ceil(margin) }
-            }
-              ?: style.videoStyle.marginTop
-          totalHeightPx +=
-            segment.mediaSlot?.let {
-              com.swmansion.enriched.markdown.media.MediaSlotView
-                .heightPx(it, style, widthPx.toFloat())
-                .let { height -> ceil(height) }
-            }
-              ?: (contentWidthPx / style.videoStyle.resolvedAspectRatio)
+          totalHeightPx += style.videoStyle.marginTop
+          totalHeightPx += contentWidthPx / style.videoStyle.resolvedAspectRatio
           if (includeBottomMargin) {
-            totalHeightPx +=
-              segment.mediaSlot?.let {
-                com.swmansion.enriched.markdown.media.MediaSlotView
-                  .marginBottom(it, style)
-                  .let { margin -> ceil(margin) }
-              }
-                ?: style.videoStyle.marginBottom
+            totalHeightPx += style.videoStyle.marginBottom
           }
         }
       }

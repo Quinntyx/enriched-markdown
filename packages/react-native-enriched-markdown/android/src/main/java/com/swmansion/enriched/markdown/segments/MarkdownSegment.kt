@@ -1,7 +1,5 @@
 package com.swmansion.enriched.markdown.segments
 
-import com.swmansion.enriched.markdown.media.DocumentAssets
-import com.swmansion.enriched.markdown.media.MediaSlot
 import com.swmansion.enriched.markdown.parser.MarkdownASTNode
 
 sealed interface MarkdownSegment {
@@ -24,21 +22,14 @@ sealed interface MarkdownSegment {
 
   data class Blockquote(
     val node: MarkdownASTNode,
-    val mediaSlots: Map<String, MediaSlot> = emptyMap(),
-    val assets: DocumentAssets? = null,
   ) : MarkdownSegment
 
   data class Video(
     val node: MarkdownASTNode,
-    val mediaSlot: MediaSlot? = null,
   ) : MarkdownSegment
 }
 
-fun splitASTIntoSegments(
-  root: MarkdownASTNode,
-  mediaSlots: Map<String, MediaSlot> = emptyMap(),
-  assets: DocumentAssets? = null,
-): List<MarkdownSegment> {
+fun splitASTIntoSegments(root: MarkdownASTNode): List<MarkdownSegment> {
   val segments = mutableListOf<MarkdownSegment>()
   val currentTextNodes = mutableListOf<MarkdownASTNode>()
 
@@ -50,14 +41,6 @@ fun splitASTIntoSegments(
   }
 
   for (child in root.children) {
-    val mediaNode =
-      if (child.type == MarkdownASTNode.NodeType.Paragraph && child.children.size == 1) child.children.first() else child
-    val slot = assets?.assetForNode(mediaNode)?.let { mediaSlots[it.id] }
-    if (slot != null) {
-      flushTextNodes()
-      segments.add(MarkdownSegment.Video(mediaNode, slot))
-      continue
-    }
     when (child.type) {
       MarkdownASTNode.NodeType.Table -> {
         flushTextNodes()
@@ -84,7 +67,7 @@ fun splitASTIntoSegments(
       MarkdownASTNode.NodeType.Admonition,
       -> {
         flushTextNodes()
-        segments.add(MarkdownSegment.Blockquote(child, mediaSlots, assets))
+        segments.add(MarkdownSegment.Blockquote(child))
       }
 
       MarkdownASTNode.NodeType.Video -> {

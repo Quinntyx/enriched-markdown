@@ -1,9 +1,3 @@
-import type { ReactNode } from 'react';
-import type {
-  DocumentAssetsEvent,
-  MarkdownMediaAsset,
-  MarkdownImageSource,
-} from './media';
 import type { ColorValue, ViewProps, ViewStyle, TextStyle } from 'react-native';
 import type { MarkdownStyle, Md4cFlags } from './MarkdownStyle';
 import type { AccessibilityLabels } from './AccessibilityLabels';
@@ -160,14 +154,6 @@ export interface EnrichedMarkdownTextProps extends Omit<ViewProps, 'style'> {
    * @platform ios, android, web
    */
   markdown: string;
-  /**
-   * Render an eligible native media occurrence as a React sibling. Returning
-   * null keeps native rendering. Supports standalone image paragraphs and direct
-   * videos at the document root or in recursive quote/admonition containers in
-   * GitHub flavor on iOS and Android. React content owns interaction
-   * and accessibility; its intrinsic height reserves native layout space.
-   */
-  renderMedia?: (asset: MarkdownMediaAsset) => ReactNode | null;
   /** Clipboard metadata for selections containing an exact configured link URL.
    * Replaces that link's plain copy text, wraps HTML with escaped attributes,
    * and adds custom pasteboard types on iOS. No effect on rendering or layout.
@@ -177,19 +163,6 @@ export interface EnrichedMarkdownTextProps extends Omit<ViewProps, 'style'> {
     htmlAttributes?: Record<string, string>;
     mimeTypes?: Record<string, string>;
   };
-  /** Native parsed media and link occurrences, including unsupported placements.
-   * Supported in GitHub flavor on iOS and Android.
-   */
-  onDocumentAssets?: (event: DocumentAssetsEvent) => void;
-  /**
-   * Resolve native image request URI/headers from the accepted image descriptor.
-   * Null uses the original source. Pending/rejected results keep a placeholder.
-   * GitHub flavor on iOS/Android only. Keep callback identity stable to reuse results.
-   * Image events, copy and Markdown exports retain the original URL.
-   */
-  resolveImageSource?: (
-    asset: MarkdownMediaAsset
-  ) => MarkdownImageSource | null | Promise<MarkdownImageSource | null>;
   /**
    * Style configuration for markdown elements.
    * @platform ios, android, web

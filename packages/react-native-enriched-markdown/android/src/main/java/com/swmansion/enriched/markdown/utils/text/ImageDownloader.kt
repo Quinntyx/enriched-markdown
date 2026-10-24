@@ -7,7 +7,6 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import okhttp3.Cache
-import okhttp3.CacheControl
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
@@ -84,10 +83,14 @@ object ImageDownloader {
       inFlight[requestKey] = mutableListOf(callback)
     }
 
-    // Invalid URLs and headers should fail the source instead of crashing the view.
+    // OkHttp throws on a URL or header it cannot use; report that like any failed download.
     val request =
       try {
-        requestForImage(url, headers)
+        Request
+          .Builder()
+          .url(url)
+          .apply { headers.forEach { (name, value) -> addHeader(name, value) } }
+          .build()
       } catch (e: IllegalArgumentException) {
         Log.e(TAG, "Invalid image request: $url", e)
         dispatchCallbacks(requestKey, null)
@@ -128,27 +131,6 @@ object ImageDownloader {
       },
     )
   }
-
-  internal fun requestForImage(
-    url: String,
-    headers: Map<String, String>,
-  ): Request =
-    Request
-      .Builder()
-      .url(url)
-      .apply {
-        headers.forEach { (name, value) -> addHeader(name, value) }
-        // The HTTP cache uses URL + server Vary, which may omit source header identity.
-        if (headers.isNotEmpty()) {
-          cacheControl(
-            CacheControl
-              .Builder()
-              .noCache()
-              .noStore()
-              .build(),
-          )
-        }
-      }.build()
 
   private fun decodeDownsampled(
     bytes: ByteArray,

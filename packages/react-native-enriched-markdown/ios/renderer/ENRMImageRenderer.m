@@ -1,6 +1,5 @@
 #import "ENRMImageRenderer.h"
 #import "ENRMImageAttachment.h"
-#import "ENRMImageSources.h"
 #import "MarkdownASTNode.h"
 #import "RenderContext.h"
 #import "RendererFactory.h"
@@ -21,15 +20,7 @@ static const unichar kZeroWidthSpace = 0x200B;
   }
 
   BOOL isInline = [self isInlineImageInOutput:output];
-  NSDictionary *source = ENRMImageSourceDecisionForNode(node);
-  NSString *transportURI = [source[@"pending"] boolValue] ? nil : (source[@"uri"] ?: imageURL);
-  NSDictionary *headers = source ? ENRMMergeImageRequestHeaders(_config.imageRequestHeaders, source[@"headers"])
-                                 : _config.imageRequestHeaders;
-  ENRMImageAttachment *attachment = [ENRMImageAttachment attachmentForURL:imageURL
-                                                                   config:_config
-                                                                 isInline:isInline
-                                                             transportURI:transportURI
-                                                           requestHeaders:headers];
+  ENRMImageAttachment *attachment = [ENRMImageAttachment attachmentForURL:imageURL config:_config isInline:isInline];
 
   NSUInteger startIndex = output.length;
 

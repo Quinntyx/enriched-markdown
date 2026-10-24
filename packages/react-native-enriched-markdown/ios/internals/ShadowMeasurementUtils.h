@@ -59,9 +59,7 @@ static inline Size ENRMClampMeasuredSize(CGSize size, const LayoutConstraints &l
 template <typename PropsT>
 static inline bool ENRMPropsNeedExactStreamingMeasurement(const PropsT &oldProps, const PropsT &newProps)
 {
-  return ENRMImageSourcesFingerprint(oldProps) != ENRMImageSourcesFingerprint(newProps) ||
-         ENRMMediaPropsFingerprint(oldProps) != ENRMMediaPropsFingerprint(newProps) ||
-         oldProps.streamingAnimation != newProps.streamingAnimation ||
+  return oldProps.streamingAnimation != newProps.streamingAnimation ||
          oldProps.allowFontScaling != newProps.allowFontScaling ||
          oldProps.maxFontSizeMultiplier != newProps.maxFontSizeMultiplier ||
          oldProps.allowTrailingMargin != newProps.allowTrailingMargin ||
@@ -108,8 +106,7 @@ ENRMMeasureMarkdownContent(const PropsT &typedProps, const std::shared_ptr<void>
   // bumps lastExactMeasurementCounter, the rest land here. Return the freshly
   // measured size, not the view's mailbox — mid-pass the frame isn't committed,
   // so the mailbox is a generation stale and would freeze the height.
-  if (typedProps.streamingAnimation && !ENRMMediaSlotsEnabled(typedProps) && view &&
-      receivedCounter <= lastExactMeasurementCounter) {
+  if (typedProps.streamingAnimation && view && receivedCounter <= lastExactMeasurementCounter) {
     if (lastExactMeasurementSize.width > 0 && lastExactMeasurementSize.height > 0) {
       return ENRMClampMeasuredSize(lastExactMeasurementSize, layoutConstraints);
     }

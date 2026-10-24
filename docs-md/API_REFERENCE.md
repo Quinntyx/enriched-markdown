@@ -111,51 +111,6 @@ Each item has `text`, `onPress({ url })`, and optional `icon`, `visible`, `disab
 ```
 
 Works in CommonMark text and GitHub-flavor text segments, including blockquotes and table cells. The text-selection menu stays controlled by `contextMenuItems` and `selectionMenuConfig`, and block copy menus by `enableBlockContextMenu`. Android, macOS and iOS below 17 ignore this prop; use `onLinkLongPress` there.
-### `renderMedia`
-Optional callback for GitHub flavor on iOS and Android. It receives an eligible `MarkdownMediaAsset` from the accepted native document manifest and returns React content for that occurrence. Standalone image paragraphs and direct video blocks support replacement at the document root or inside recursive quotes and admonitions. Inline, list, table, and linked images retain native rendering. Quotes beneath unsupported ancestors remain ineligible. Returning null, undefined, or a boolean also keeps native rendering.
-  markdown={markdown}
-  flavor="github"
-  renderMedia={(asset) =>
-    asset.kind === 'image'
-      ? <Image accessibilityLabel={asset.altText}
-          source={{ uri: asset.url }} style={{ width: '100%', height: 180 }} />
-      : null
-  }
-Return content with an intrinsic height at the native block width. Avoid `height: '100%'` at its root. React owns the media's interaction and accessibility. The native placeholder is inaccessible and reserves the measured height; surrounding Markdown retains native layout, selection, copy, and press handling. The native and React accessibility groups are separate, so this API does not promise a merged accessibility reading order.
-Duplicate URLs have independent slots. Ordinary trailing appends retain mounted component state and valid measurements while accepted occurrence identity remains unchanged. Native live and shadow layout reject stale revisions, changed identity, and measurements at an old width. Arbitrary document edits invalidate continuity. Applications may classify a native image occurrence as video inside their callback; `asset.kind` still describes the native AST.
-This API adds no player or source resolver. Existing native media handles unsupported placements and fallback decisions. CommonMark and web do not call `renderMedia`.
-
-### `onDocumentAssets`
-
-Optional callback for GitHub flavor on iOS and Android. It receives `{ revision, assets }` directly, like `onImagePress`. The native renderer collects image, video, and link occurrences from the same accepted AST it renders. JavaScript does not parse the Markdown again. Omitted callbacks disable collection.
-
-Each `MarkdownDocumentAsset` has `id`, `kind`, `url`, `altText`, `title`, `placement`, and `eligible`. `kind` is `image`, `video`, or `link`; `placement` is `block`, `inline`, `list`, `table`, or `blockquote`. `eligible` identifies standalone root image paragraphs and root video blocks; links and other placements have `eligible: false`. All occurrences remain in the manifest. Missing native titles are empty strings.
-
-IDs distinguish occurrences, including duplicate URLs, and are scoped to one component and document lineage. Ordinary trailing appends preserve existing IDs while the parsed asset prefix is unchanged. Edits or reference-definition reclassification can renumber them. `revision` follows the component's parser inputs. Stale native events are ignored, repeated reports are deduplicated, and empty documents report an empty asset list. Streaming reports describe the accepted renderable document, which may withhold incomplete blocks.
-
-```tsx
-<EnrichedMarkdownText
-  markdown={markdown}
-  flavor="github"
-  onDocumentAssets={({ assets }) => {
-    const links = assets.filter((asset) => asset.kind === 'link');
-    updateLinkMetadata(links);
-  }}
-/>
-```
-
-`DocumentAssetsEvent`, `MarkdownDocumentAsset`, `MarkdownMediaAsset`, `MarkdownLinkAsset`, and `MarkdownAssetPlacement` are exported types. This callback does not change native rendering, selection, copy, or press handling. CommonMark and web do not emit it.
-
-### `resolveImageSource`
-
-Optional callback for GitHub flavor on iOS and Android. Receives an accepted
-native image descriptor and returns `{ uri, headers? }`, `null` to use the
-original source, or a promise of either. Pending or rejected results keep the
-native placeholder without requesting the original URL. Image events, copy and
-Markdown exports retain the original URL.
-
-See [Resolving image sources](../packages/react-native-enriched-markdown/docs/image-sources.md)
-for header precedence, caching and callback lifetime.
 
 ### `onImagePress`
 

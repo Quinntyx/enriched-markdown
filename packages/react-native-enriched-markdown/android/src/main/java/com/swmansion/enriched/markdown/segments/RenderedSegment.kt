@@ -3,8 +3,6 @@ package com.swmansion.enriched.markdown.segments
 import android.content.Context
 import android.text.Spannable
 import com.swmansion.enriched.markdown.math.LatexErrorReporter
-import com.swmansion.enriched.markdown.media.DocumentAssets
-import com.swmansion.enriched.markdown.media.MediaSlot
 import com.swmansion.enriched.markdown.parser.MarkdownASTNode
 import com.swmansion.enriched.markdown.renderer.BlockquoteTextRenderer
 import com.swmansion.enriched.markdown.renderer.Renderer
@@ -53,14 +51,11 @@ sealed interface RenderedSegment {
   data class Blockquote(
     val node: MarkdownASTNode,
     override val signature: Long,
-    val mediaSlots: Map<String, MediaSlot> = emptyMap(),
-    val assets: DocumentAssets? = null,
   ) : RenderedSegment
 
   data class Video(
     val node: MarkdownASTNode,
     override val signature: Long,
-    val mediaSlot: MediaSlot? = null,
   ) : RenderedSegment
 }
 
@@ -97,15 +92,13 @@ object MarkdownSegmentRenderer {
         }
 
         is MarkdownSegment.Blockquote -> {
-          val signature =
-            SegmentSignature.signatureForNode(segment.node) xor SegmentSignature.BLOCKQUOTE_KIND_SALT xor
-              segment.mediaSlots.hashCode().toLong()
-          RenderedSegment.Blockquote(segment.node, signature, segment.mediaSlots, segment.assets)
+          val signature = SegmentSignature.signatureForNode(segment.node) xor SegmentSignature.BLOCKQUOTE_KIND_SALT
+          RenderedSegment.Blockquote(segment.node, signature)
         }
 
         is MarkdownSegment.Video -> {
           val signature = SegmentSignature.signatureForNode(segment.node) xor SegmentSignature.VIDEO_KIND_SALT
-          RenderedSegment.Video(segment.node, signature xor (segment.mediaSlot?.hashCode()?.toLong() ?: 0L), segment.mediaSlot)
+          RenderedSegment.Video(segment.node, signature)
         }
       }
     }

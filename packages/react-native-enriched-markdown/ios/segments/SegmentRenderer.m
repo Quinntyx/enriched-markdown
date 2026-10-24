@@ -1,6 +1,5 @@
 #import "SegmentRenderer.h"
 #import "ENRMFeatureFlags.h"
-#import "ENRMImageSources.h"
 #import "ENRMTextRenderer.h"
 #import "MarkdownASTNode.h"
 #import "ParagraphStyleUtils.h"
@@ -12,13 +11,7 @@ static NSArray *ENRMSplitASTIntoSegments(MarkdownASTNode *root)
   NSMutableArray *currentTextNodes = [NSMutableArray array];
 
   for (MarkdownASTNode *child in root.children) {
-    if (child.attributes[@"_enrmMediaSlot"]) {
-      if (currentTextNodes.count > 0) {
-        [segments addObject:[ENRMTextSegment segmentWithNodes:[currentTextNodes copy]]];
-        [currentTextNodes removeAllObjects];
-      }
-      [segments addObject:child];
-    } else if (child.type == MarkdownNodeTypeTable) {
+    if (child.type == MarkdownNodeTypeTable) {
       if (currentTextNodes.count > 0) {
         [segments addObject:[ENRMTextSegment segmentWithNodes:[currentTextNodes copy]]];
         [currentTextNodes removeAllObjects];
@@ -90,26 +83,18 @@ NSArray<ENRMRenderedSegment *> *ENRMRenderSegmentsFromAST(MarkdownASTNode *ast, 
   static const uint64_t kVideoKindSalt = 0x7669646F00000000ULL;      // "vido"
 
   for (id segment in segments) {
-    if ([segment isKindOfClass:[MarkdownASTNode class]]) {
-      ENRMRenderedSegment *rendered = [[ENRMRenderedSegment alloc] init];
-      rendered.kind = ENRMSegmentKindMediaSlot;
-      rendered.mediaSlotNode = segment;
-      rendered.signature = ENRMSignatureForNode(segment);
-      [renderedSegments addObject:rendered];
-    } else if ([segment isKindOfClass:[ENRMTextSegment class]]) {
+    if ([segment isKindOfClass:[ENRMTextSegment class]]) {
       ENRMTextSegment *textSegment = (ENRMTextSegment *)segment;
       ENRMRenderResult *rendered = blockquoteContent
                                        ? ENRMRenderBlockquoteContentNodes(textSegment.nodes, config, allowFontScaling,
                                                                           maxFontSizeMultiplier, lineBreakStrategy)
                                        : ENRMRenderASTNodes(textSegment.nodes, config, allowTrailingMargin,
                                                             allowFontScaling, maxFontSizeMultiplier, lineBreakStrategy);
-      uint64_t signature = ENRMSignatureForNodes(textSegment.nodes) ^
-                           ENRMImageSourceSignatureForNodes(textSegment.nodes) ^ kTextKindSalt;
+      uint64_t signature = ENRMSignatureForNodes(textSegment.nodes) ^ kTextKindSalt;
       [renderedSegments addObject:[ENRMRenderedSegment textSegmentWithResult:rendered signature:signature]];
     } else if ([segment isKindOfClass:[ENRMTableSegment class]]) {
       ENRMTableSegment *tableSegment = (ENRMTableSegment *)segment;
-      uint64_t signature = ENRMSignatureForNode(tableSegment.tableNode) ^
-                           ENRMImageSourceSignatureForNode(tableSegment.tableNode) ^ kTableKindSalt;
+      uint64_t signature = ENRMSignatureForNode(tableSegment.tableNode) ^ kTableKindSalt;
       [renderedSegments addObject:[ENRMRenderedSegment tableSegmentWithSegment:tableSegment signature:signature]];
     }
 #if ENRICHED_MARKDOWN_MATH
@@ -132,8 +117,7 @@ NSArray<ENRMRenderedSegment *> *ENRMRenderSegmentsFromAST(MarkdownASTNode *ast, 
                                                                          signature:signature]];
     } else if ([segment isKindOfClass:[ENRMBlockquoteSegment class]]) {
       ENRMBlockquoteSegment *blockquoteSegment = (ENRMBlockquoteSegment *)segment;
-      uint64_t signature = ENRMSignatureForNode(blockquoteSegment.blockquoteNode) ^
-                           ENRMImageSourceSignatureForNode(blockquoteSegment.blockquoteNode) ^ kBlockquoteKindSalt;
+      uint64_t signature = ENRMSignatureForNode(blockquoteSegment.blockquoteNode) ^ kBlockquoteKindSalt;
       [renderedSegments addObject:[ENRMRenderedSegment blockquoteSegmentWithSegment:blockquoteSegment
                                                                           signature:signature]];
     }

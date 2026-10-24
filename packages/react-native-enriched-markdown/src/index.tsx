@@ -51,12 +51,3 @@ export type {
   HeadingLevel,
   HeadingStyle,
 } from './EnrichedMarkdownTextInput';
-
-export type {
-  MarkdownAssetPlacement,
-  MarkdownMediaAsset,
-  MarkdownImageSource,
-  MarkdownLinkAsset,
-  MarkdownDocumentAsset,
-  DocumentAssetsEvent,
-} from './types/media';

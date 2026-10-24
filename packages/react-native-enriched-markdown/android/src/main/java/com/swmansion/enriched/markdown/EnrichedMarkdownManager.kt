@@ -13,8 +13,6 @@ import com.facebook.react.uimanager.annotations.ReactProp
 import com.facebook.react.viewmanagers.EnrichedMarkdownManagerDelegate
 import com.facebook.react.viewmanagers.EnrichedMarkdownManagerInterface
 import com.facebook.yoga.YogaMeasureMode
-import com.swmansion.enriched.markdown.media.parseImageSources
-import com.swmansion.enriched.markdown.media.parseMediaOverrides
 import com.swmansion.enriched.markdown.spoiler.SpoilerOverlay
 import com.swmansion.enriched.markdown.utils.common.CodeBlockStreamingMode
 import com.swmansion.enriched.markdown.utils.common.TableStreamingMode
@@ -117,11 +115,7 @@ class EnrichedMarkdownManager :
     MeasurementStore.clearFontScalingSettings(view.id)
   }
 
-  override fun getExportedCustomDirectEventTypeConstants(): MutableMap<String, Any> =
-    markdownEventTypeConstants().apply {
-      put("onDocumentAssets", mapOf("registrationName" to "onDocumentAssets"))
-      put("onMediaLayout", mapOf("registrationName" to "onMediaLayout"))
-    }
+  override fun getExportedCustomDirectEventTypeConstants(): MutableMap<String, Any> = markdownEventTypeConstants()
 
   @ReactProp(name = "selectionClipboardConfig")
   override fun setSelectionClipboardConfig(
@@ -129,78 +123,6 @@ class EnrichedMarkdownManager :
     value: String?,
   ) {
     view?.setSelectionClipboardConfig(value)
-  }
-
-  @ReactProp(name = "enableImageSourceResolution", defaultBoolean = false)
-  override fun setEnableImageSourceResolution(
-    view: EnrichedMarkdown?,
-    value: Boolean,
-  ) {
-    view?.setEnableImageSourceResolution(value)
-  }
-
-  @ReactProp(name = "imageSourcesRevision", defaultInt = -1)
-  override fun setImageSourcesRevision(
-    view: EnrichedMarkdown?,
-    value: Int,
-  ) {
-    view?.setImageSourcesRevision(value)
-  }
-
-  @ReactProp(name = "imageSourcesContinuityStart", defaultInt = 1)
-  override fun setImageSourcesContinuityStart(
-    view: EnrichedMarkdown?,
-    value: Int,
-  ) {
-    view?.setImageSourcesContinuityStart(value)
-  }
-
-  @ReactProp(name = "imageSources")
-  override fun setImageSources(
-    view: EnrichedMarkdown?,
-    value: ReadableArray?,
-  ) {
-    view?.setImageSources(parseImageSources(value))
-  }
-
-  @ReactProp(name = "documentRevision", defaultInt = 0)
-  override fun setDocumentRevision(
-    view: EnrichedMarkdown?,
-    value: Int,
-  ) {
-    view?.setDocumentRevision(value)
-  }
-
-  @ReactProp(name = "mediaOverridesRevision", defaultInt = -1)
-  override fun setMediaOverridesRevision(
-    view: EnrichedMarkdown?,
-    value: Int,
-  ) {
-    view?.setMediaOverridesRevision(value)
-  }
-
-  @ReactProp(name = "enableDocumentAssets", defaultBoolean = false)
-  override fun setEnableDocumentAssets(
-    view: EnrichedMarkdown?,
-    value: Boolean,
-  ) {
-    view?.setEnableDocumentAssets(value)
-  }
-
-  @ReactProp(name = "enableMediaSlots", defaultBoolean = false)
-  override fun setEnableMediaSlots(
-    view: EnrichedMarkdown?,
-    value: Boolean,
-  ) {
-    view?.setEnableMediaSlots(value)
-  }
-
-  @ReactProp(name = "mediaOverrides")
-  override fun setMediaOverrides(
-    view: EnrichedMarkdown?,
-    value: ReadableArray?,
-  ) {
-    view?.setMediaOverrides(parseMediaOverrides(value))
   }
 
   @ReactProp(name = "markdown")
