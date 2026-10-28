@@ -86,7 +86,7 @@ try {
     path.join(staging, 't3-fork.json'),
     JSON.stringify(
       {
-        repository: 'https://github.com/pingdotgg/enriched-markdown',
+        repository: 'https://github.com/Quinntyx/enriched-markdown',
         commit: git('rev-parse', 'HEAD'),
         upstreamCommit: '69c3330dd6d75cacd8d046f4e0c4b8fe5c42a6e1',
         version: pkg.version,
