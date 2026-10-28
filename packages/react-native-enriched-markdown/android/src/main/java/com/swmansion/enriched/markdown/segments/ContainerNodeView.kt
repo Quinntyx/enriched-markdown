@@ -4,6 +4,7 @@ import android.content.Context
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import com.swmansion.enriched.markdown.gestures.BlockingGestureYielderHost
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -43,6 +44,18 @@ open class ContainerNodeView(
         when (view) {
           is CodeBlockContainerView -> yield(view)
           is ContainerNodeView -> yieldAll(view.codeBlockViews())
+        }
+      }
+    }
+
+  // The horizontally scrollable blocks BlockingGestureYielder binds to, in
+  // document order, descending into nested blockquotes.
+  internal fun scrollableBlockViews(): Sequence<BlockingGestureYielderHost> =
+    sequence {
+      segmentViews.forEach { view ->
+        when {
+          view is BlockingGestureYielderHost -> yield(view)
+          view is ContainerNodeView -> yieldAll(view.scrollableBlockViews())
         }
       }
     }

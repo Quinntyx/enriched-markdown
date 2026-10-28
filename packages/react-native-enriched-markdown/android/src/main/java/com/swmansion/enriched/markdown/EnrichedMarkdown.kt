@@ -187,6 +187,12 @@ class EnrichedMarkdown(
       dynamicProps.enableCodeBlockPress = value
     }
 
+  fun setBlockingGestureTags(tags: IntArray) {
+    if (dynamicProps.blockingGestureTags.contentEquals(tags)) return
+    dynamicProps.blockingGestureTags = tags
+    scrollableBlockViews().forEach { it.onBlockingGestureTagsChanged() }
+  }
+
   private val codeBlockWrapState =
     CodeBlockWrapState(viewTag = { id }, codeBlockViews = ::codeBlockViews, onHeightChanged = ::onImageLayoutChanged)
 

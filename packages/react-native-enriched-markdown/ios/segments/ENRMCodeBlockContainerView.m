@@ -1,5 +1,6 @@
 #import "ENRMCodeBlockContainerView.h"
 #import "ENRMAccessibilityLabels.h"
+#import "ENRMBlockingGestureYielder.h"
 #import "ENRMCodeBlockContent.h"
 #import "ENRMCodeBlockHighlighter.h"
 #import "ENRMHorizontalScrollView.h"
@@ -268,7 +269,8 @@ static BOOL ENRMColorIsDark(RCTUIColor *color)
 @end
 
 #if !TARGET_OS_OSX
-@interface ENRMCodeBlockContainerView () <UIContextMenuInteractionDelegate, UIGestureRecognizerDelegate>
+@interface ENRMCodeBlockContainerView () <UIContextMenuInteractionDelegate, UIGestureRecognizerDelegate,
+                                          ENRMBlockingGestureYielderHost>
 @end
 #endif
 
@@ -279,6 +281,7 @@ static BOOL ENRMColorIsDark(RCTUIColor *color)
   NSString *_displayLanguage;
   NSString *_fenceChar;
   ENRMHorizontalScrollView *_scrollView;
+  ENRMBlockingGestureYielder *_gestureYielder;
   ENRMCodeBlockContentView *_codeContentView;
   CGSize _codeSize;
   CGFloat _headerLabelLineHeight;
@@ -372,6 +375,14 @@ static BOOL ENRMColorIsDark(RCTUIColor *color)
   _scrollView = [[ENRMHorizontalScrollView alloc] init];
   _scrollView.showsVerticalScrollIndicator = NO;
   _scrollView.showsHorizontalScrollIndicator = YES;
+#if !TARGET_OS_OSX
+  __weak ENRMCodeBlockContainerView *weakSelfForYielder = self;
+  _gestureYielder = [[ENRMBlockingGestureYielder alloc]
+      initWithScrollView:_scrollView
+      blockingGestureTags:^NSArray<NSNumber *> *_Nullable {
+        return weakSelfForYielder.dynamicProps.blockingGestureTags;
+      }];
+#endif
   _codeContentView = [[ENRMCodeBlockContentView alloc] initWithFrame:CGRectZero];
   BOOL darkBackground = ENRMColorIsDark([_config codeBlockBackgroundColor]);
 #if !TARGET_OS_OSX
@@ -409,6 +420,11 @@ static BOOL ENRMColorIsDark(RCTUIColor *color)
   _codeContentView.wrapWidth = _wrapped ? MAX(ENRMCodeBlockWrapWidth(self.bounds.size.width, _config), 1) : 0;
   CGFloat codeWidth = _wrapped ? 0 : _codeSize.width;
   CGFloat contentWidth = MAX(codeWidth + horizontalPad * 2, frame.size.width);
+#if !TARGET_OS_OSX
+  // Same gate as the pane's own scrollability: unwrapped text wider than the
+  // pane (a wrapped block never scrolls).
+  [_gestureYielder setOverflowing:!_wrapped && contentWidth > frame.size.width];
+#endif
   _codeContentView.textOrigin = CGPointMake(horizontalPad, inset);
   _codeContentView.frame = CGRectMake(0, 0, contentWidth, frame.size.height);
 #if !TARGET_OS_OSX
@@ -539,6 +555,23 @@ static BOOL ENRMColorIsDark(RCTUIColor *color)
   [self layoutScrollArea];
 }
 #endif
+
+- (void)didMoveToWindow
+{
+  [super didMoveToWindow];
+#if !TARGET_OS_OSX
+  if (self.window) {
+    [_gestureYielder onWindowAttached];
+  } else {
+    [_gestureYielder onWindowDetached];
+  }
+#endif
+}
+
+- (void)blockingGestureTagsChanged
+{
+  [_gestureYielder onBlockingGestureTagsChanged];
+}
 
 #if TARGET_OS_OSX
 - (BOOL)isFlipped

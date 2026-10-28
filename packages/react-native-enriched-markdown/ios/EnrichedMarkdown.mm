@@ -29,9 +29,11 @@
 #import "ENRMBlockSlotLayerView.h"
 #import "ENRMBlockSlotRevealController.h"
 #import "ENRMBlockSlotSegmentView.h"
+#import "ENRMBlockingGestureYielder.h"
 #import "ENRMBlockquoteContainerView.h"
 #import "ENRMCodeBlockContainerView.h"
 #import "ENRMCodeBlockWrapState.h"
+#import "ENRMContainerNodeView.h"
 #import "ENRMDynamicBlockProps.h"
 #import "ENRMSpoilerCapable.h"
 #import "ENRMSpoilerOverlayView.h"
@@ -85,6 +87,31 @@ typedef NS_OPTIONS(NSUInteger, ENRMDirtyFlags) {
 };
 
 static char kENRMSegmentFadeAnimatorKey;
+
+// The iOS counterpart of Android's ContainerNodeView.scrollableBlockViews:
+// walks the segment tree in document order, descending into nested containers,
+// and notifies every scrollable block host that carries a yielder.
+static void ENRMNotifyBlockingGestureYielders(NSArray<RCTUIView *> *views)
+{
+  for (RCTUIView *view in views) {
+    if ([view isKindOfClass:[ENRMContainerNodeView class]]) {
+      ENRMNotifyBlockingGestureYielders(((ENRMContainerNodeView *)view).segmentViews);
+    } else if ([view conformsToProtocol:@protocol(ENRMBlockingGestureYielderHost)]) {
+      [(id<ENRMBlockingGestureYielderHost>)view blockingGestureTagsChanged];
+    }
+  }
+}
+
+// Codegen carries the prop as int32s; the shared dynamicProps box keeps
+// NSNumbers so block containers can read it from plain Objective-C.
+static NSArray<NSNumber *> *ENRMBlockingGestureTagsFromArray(const std::vector<int32_t> &tags)
+{
+  NSMutableArray<NSNumber *> *result = [NSMutableArray arrayWithCapacity:tags.size()];
+  for (int32_t tag : tags) {
+    [result addObject:@(tag)];
+  }
+  return result;
+}
 
 @interface EnrichedMarkdown () <RCTEnrichedMarkdownViewProtocol, UITextViewDelegate, ENRMImageLayoutObserver>
 + (ENRMMd4cFlags *)flagsFromProps:(const EnrichedMarkdownMd4cFlagsStruct &)props;
@@ -1519,6 +1546,14 @@ static char kENRMSegmentFadeAnimatorKey;
   _dynamicBlockProps.enableLinkPreview = newViewProps.enableLinkPreview;
   _dynamicBlockProps.enableBlockContextMenu = newViewProps.enableBlockContextMenu;
   _dynamicBlockProps.enableCodeBlockPress = newViewProps.enableCodeBlockPress;
+
+  if (newViewProps.blockingGestureTags != oldViewProps.blockingGestureTags) {
+    NSArray<NSNumber *> *tags = ENRMBlockingGestureTagsFromArray(newViewProps.blockingGestureTags);
+    if (![tags isEqualToArray:_dynamicBlockProps.blockingGestureTags ?: @[]]) {
+      _dynamicBlockProps.blockingGestureTags = tags;
+      ENRMNotifyBlockingGestureYielders(_segmentViews);
+    }
+  }
 
   if ([_codeBlockWrapState updateEnabled:newViewProps.enableCodeBlockWrapToggle]) {
     [self setNeedsLayout];

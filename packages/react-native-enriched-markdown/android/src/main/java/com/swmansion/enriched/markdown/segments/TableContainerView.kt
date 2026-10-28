@@ -22,6 +22,8 @@ import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import androidx.core.view.ViewCompat
 import com.swmansion.enriched.markdown.accessibility.AccessibilityLabels
+import com.swmansion.enriched.markdown.gestures.BlockingGestureYielder
+import com.swmansion.enriched.markdown.gestures.BlockingGestureYielderHost
 import com.swmansion.enriched.markdown.parser.MarkdownASTNode
 import com.swmansion.enriched.markdown.parser.MarkdownASTNode.NodeType
 import com.swmansion.enriched.markdown.renderer.Renderer
@@ -46,7 +48,8 @@ class TableContainerView(
   context: Context,
   private val styleConfig: StyleConfig,
 ) : FrameLayout(context),
-  BlockSegmentView {
+  BlockSegmentView,
+  BlockingGestureYielderHost {
   internal val tableStyle: TableStyle = styleConfig.tableStyle
 
   override val segmentMarginTop: Int get() = tableStyle.marginTop.toInt()
@@ -79,6 +82,9 @@ class TableContainerView(
         },
       )
     }
+  private val gestureYielder =
+    BlockingGestureYielder(scrollView) { dynamicProps.blockingGestureTags }
+
   private val gridContainer get() = scrollView.getChildAt(0) as GridContainerView
 
   val rowCount: Int get() = rows.size
@@ -365,6 +371,7 @@ class TableContainerView(
     scrollView.setPadding(overhang, 0, overhang, 0)
     scrollView.clipToPadding = !tableOverflows
     scrollView.isHorizontalScrollBarEnabled = tableOverflows
+    gestureYielder.setOverflowing(tableOverflows)
 
     scrollView.layout(0, 0, viewWidth, bottom - top)
 
@@ -389,6 +396,21 @@ class TableContainerView(
         scrollView.scrollTo((totalTableWidth - effectiveWidth).toInt(), 0)
       }
     }
+  }
+
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
+    // Registry entries survive detach, so reattaching re-arms registration too.
+    gestureYielder.onWindowAttached()
+  }
+
+  override fun onDetachedFromWindow() {
+    gestureYielder.onWindowDetached()
+    super.onDetachedFromWindow()
+  }
+
+  override fun onBlockingGestureTagsChanged() {
+    gestureYielder.onBlockingGestureTagsChanged()
   }
 
   private fun showContextMenu(anchor: View): Boolean {

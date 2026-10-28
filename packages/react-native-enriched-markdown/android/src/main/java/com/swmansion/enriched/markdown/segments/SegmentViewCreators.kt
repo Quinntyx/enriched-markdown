@@ -39,6 +39,11 @@ class DynamicBlockProps {
   var copyAsMarkdownLabel: String = ""
   var onCopyPress: ((code: String, language: String) -> Unit)? = null
   var onCodeBlockPress: ((code: String, language: String) -> Unit)? = null
+
+  // Handler tags of the host app's drawer Pan (blockingGestureTags prop): read
+  // live by BlockingGestureYielder, pushed to attached handlers by the root on
+  // prop change.
+  var blockingGestureTags: IntArray = IntArray(0)
 }
 
 /**

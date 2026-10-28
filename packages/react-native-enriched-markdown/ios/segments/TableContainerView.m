@@ -1,4 +1,5 @@
 #import "TableContainerView.h"
+#import "ENRMBlockingGestureYielder.h"
 #import "AttributedRenderer.h"
 #import "ENRMAccessibilityLabels.h"
 #import "ENRMHorizontalScrollView.h"
@@ -235,7 +236,7 @@ static void ENRMTableComputeLayout(NSArray<NSArray<TableCellData *> *> *rows, NS
 }
 
 #if !TARGET_OS_OSX
-@interface TableContainerView () <UIContextMenuInteractionDelegate>
+@interface TableContainerView () <UIContextMenuInteractionDelegate, ENRMBlockingGestureYielderHost>
 @end
 #else
 @interface TableContainerView ()
@@ -244,6 +245,7 @@ static void ENRMTableComputeLayout(NSArray<NSArray<TableCellData *> *> *rows, NS
 
 @implementation TableContainerView {
   ENRMHorizontalScrollView *_scrollView;
+  ENRMBlockingGestureYielder *_gestureYielder;
   RCTUIView *_gridContainer;
   NSArray<NSArray<TableCellData *> *> *_rows;
   NSUInteger _colCount;
@@ -285,6 +287,14 @@ static void ENRMTableComputeLayout(NSArray<NSArray<TableCellData *> *> *rows, NS
 {
   _scrollView = [[ENRMHorizontalScrollView alloc] init];
   _scrollView.showsVerticalScrollIndicator = NO;
+#if !TARGET_OS_OSX
+  __weak TableContainerView *weakSelfForYielder = self;
+  _gestureYielder = [[ENRMBlockingGestureYielder alloc]
+      initWithScrollView:_scrollView
+      blockingGestureTags:^NSArray<NSNumber *> *_Nullable {
+        return weakSelfForYielder.dynamicProps.blockingGestureTags;
+      }];
+#endif
   _scrollView.showsHorizontalScrollIndicator = YES;
 #if !TARGET_OS_OSX
   _scrollView.alwaysBounceHorizontal = NO;
@@ -342,6 +352,25 @@ static void ENRMTableComputeLayout(NSArray<NSArray<TableCellData *> *> *rows, NS
 - (NSUInteger)rowCount
 {
   return _rows.count;
+}
+
+- (void)didMoveToWindow
+{
+  [super didMoveToWindow];
+#if !TARGET_OS_OSX
+  if (self.window) {
+    [_gestureYielder onWindowAttached];
+  } else {
+    [_gestureYielder onWindowDetached];
+  }
+#endif
+}
+
+- (void)blockingGestureTagsChanged
+{
+#if !TARGET_OS_OSX
+  [_gestureYielder onBlockingGestureTagsChanged];
+#endif
 }
 
 #if !TARGET_OS_OSX
@@ -787,6 +816,9 @@ static void ENRMTableComputeLayout(NSArray<NSArray<TableCellData *> *> *rows, NS
   [super layoutSubviews];
   _scrollView.frame = self.bounds;
 #if !TARGET_OS_OSX
+  // The yielder follows scrollability, which each branch derives from
+  // _totalTableWidth vs the container width.
+  [_gestureYielder setOverflowing:_totalTableWidth > self.bounds.size.width];
   CGFloat overhang = MAX(self.config.tableHorizontalOverflow, 0);
   CGFloat containerWidth = self.bounds.size.width;
   BOOL tableOverflows = (overhang > 0 && _totalTableWidth > containerWidth);

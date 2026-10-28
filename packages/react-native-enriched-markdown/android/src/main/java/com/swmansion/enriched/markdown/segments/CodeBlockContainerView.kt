@@ -26,6 +26,8 @@ import android.widget.ImageView
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.AppCompatTextView
 import com.swmansion.enriched.markdown.accessibility.AccessibilityLabels
+import com.swmansion.enriched.markdown.gestures.BlockingGestureYielder
+import com.swmansion.enriched.markdown.gestures.BlockingGestureYielderHost
 import com.swmansion.enriched.markdown.parser.MarkdownASTNode
 import com.swmansion.enriched.markdown.spans.LineHeightSpan
 import com.swmansion.enriched.markdown.styles.CodeBlockStyle
@@ -57,7 +59,8 @@ class CodeBlockContainerView(
   context: Context,
   styleConfig: StyleConfig,
 ) : FrameLayout(context),
-  BlockSegmentView {
+  BlockSegmentView,
+  BlockingGestureYielderHost {
   private val codeBlockStyle: CodeBlockStyle = styleConfig.codeBlockStyle
 
   private val inset = contentInset(codeBlockStyle)
@@ -149,6 +152,9 @@ class CodeBlockContainerView(
       }
       addView(textView, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
     }
+
+  private val gestureYielder =
+    BlockingGestureYielder(scrollView) { dynamicProps.blockingGestureTags }
 
   private val languageView =
     AppCompatTextView(context).apply {
@@ -319,6 +325,11 @@ class CodeBlockContainerView(
     wrapButton.layout(wrapLeft, buttonTop, wrapLeft + wrapButton.measuredWidth, buttonTop + wrapButton.measuredHeight)
 
     scrollView.layout(borderW, headerH, width - borderW, bottom - top - borderW)
+
+    // The pane only scrolls when unwrapped text is wider than the pane (a
+    // wrapped block never does), so the registration follows the measured
+    // layout pass here rather than onMeasure.
+    gestureYielder.setOverflowing(!wrapped && textView.width > scrollView.width)
   }
 
   // Divider between the header and the code, centered in the gap the code
@@ -328,6 +339,21 @@ class CodeBlockContainerView(
     val borderWidth = borderW.toFloat()
     val y = headerH + inset / 2f
     canvas.drawLine(borderWidth, y, width - borderWidth, y, dividerPaint)
+  }
+
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
+    // Registry entries survive detach, so reattaching re-arms registration too.
+    gestureYielder.onWindowAttached()
+  }
+
+  override fun onDetachedFromWindow() {
+    gestureYielder.onWindowDetached()
+    super.onDetachedFromWindow()
+  }
+
+  override fun onBlockingGestureTagsChanged() {
+    gestureYielder.onBlockingGestureTagsChanged()
   }
 
   // Returns whether a menu was shown, so the long-press listener only consumes

@@ -177,6 +177,11 @@ fun parseLinkPillContent(value: ReadableArray?): Map<String, LinkPillContent> =
       url to LinkPillContent.fromReadableMap(entry)
     }.toMap()
 
+fun parseBlockingGestureTags(value: ReadableArray?): IntArray {
+  value ?: return IntArray(0)
+  return IntArray(value.size()) { value.getInt(it) }
+}
+
 fun parseSelectionMenuConfig(value: ReadableMap?): SelectionMenuConfig {
   if (value == null) return SelectionMenuConfig()
   return SelectionMenuConfig(

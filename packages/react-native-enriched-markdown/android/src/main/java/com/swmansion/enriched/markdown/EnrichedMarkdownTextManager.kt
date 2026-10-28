@@ -348,6 +348,15 @@ class EnrichedMarkdownTextManager :
     view.setLinkPillContent(parseLinkPillContent(value))
   }
 
+  @ReactProp(name = "blockingGestureTags")
+  override fun setBlockingGestureTags(
+    view: EnrichedMarkdownText?,
+    value: ReadableArray?,
+  ) {
+    // No-op on Android — the CommonMark path has no scrollable panes; the GFM
+    // block view (EnrichedMarkdownManager) owns the native scrolls.
+  }
+
   @ReactProp(name = "selectionMenuConfig")
   override fun setSelectionMenuConfig(
     view: EnrichedMarkdownText?,

@@ -30,6 +30,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) BOOL enableCodeBlockPress;
 @property (nonatomic, copy, nullable, getter=menuCopyLabel) NSString *copyLabel;
 @property (nonatomic, copy, nullable, getter=menuCopyAsMarkdownLabel) NSString *copyAsMarkdownLabel;
+// Root drawer pan handler tags carried from the blockingGestureTags prop; read
+// live by an ENRMBlockingGestureYielder at every use-time.
+@property (nonatomic, copy, nullable) NSArray<NSNumber *> *blockingGestureTags;
 @end
 
 NS_ASSUME_NONNULL_END

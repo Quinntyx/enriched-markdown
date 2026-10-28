@@ -28,6 +28,7 @@ import com.swmansion.enriched.markdown.utils.common.emitLinkPress
 import com.swmansion.enriched.markdown.utils.common.emitTaskListItemPress
 import com.swmansion.enriched.markdown.utils.common.markdownEventTypeConstants
 import com.swmansion.enriched.markdown.utils.common.parseAccessibilityLabels
+import com.swmansion.enriched.markdown.utils.common.parseBlockingGestureTags
 import com.swmansion.enriched.markdown.utils.common.parseContextMenuItems
 import com.swmansion.enriched.markdown.utils.common.parseImageRequestHeaders
 import com.swmansion.enriched.markdown.utils.common.parseImageSources
@@ -413,6 +414,15 @@ class EnrichedMarkdownManager :
   ) {
     if (view == null) return
     view.setLinkPillContent(parseLinkPillContent(value))
+  }
+
+  @ReactProp(name = "blockingGestureTags")
+  override fun setBlockingGestureTags(
+    view: EnrichedMarkdown?,
+    value: ReadableArray?,
+  ) {
+    if (view == null) return
+    view.setBlockingGestureTags(parseBlockingGestureTags(value))
   }
 
   @ReactProp(name = "selectionMenuConfig")
