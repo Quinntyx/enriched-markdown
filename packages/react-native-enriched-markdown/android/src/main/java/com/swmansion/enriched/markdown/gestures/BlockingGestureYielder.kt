@@ -3,8 +3,8 @@ package com.swmansion.enriched.markdown.gestures
 import android.view.View
 import android.widget.HorizontalScrollView
 import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.ReadableMap
-import com.facebook.react.uimanager.ReactContext
 import java.lang.reflect.Method
 
 /**
@@ -150,8 +150,10 @@ internal class BlockingGestureYielder(
   companion object {
     // NativeViewGestureHandler.Factory.name
     private const val HANDLER_NAME = "NativeViewGestureHandler"
+
     // RNGestureHandlerInteractionManager KEY_BLOCKS_HANDLERS
     private const val KEY_BLOCKS_HANDLERS = "blocksHandlers"
+
     // GestureHandler.ACTION_TYPE_NONE
     private const val ACTION_TYPE_NONE = 0
 
@@ -192,8 +194,10 @@ internal class BlockingGestureYielder(
       private val dropMethod: Method? =
         moduleMethod("dropGestureHandler", doubleType)
 
-      private fun moduleMethod(name: String, vararg parameterTypes: Class<*>): Method? =
-        methodOrNull(moduleClass, name, *parameterTypes)
+      private fun moduleMethod(
+        name: String,
+        vararg parameterTypes: Class<*>,
+      ): Method? = methodOrNull(moduleClass, name, *parameterTypes)
 
       private fun methodOrNull(
         declaringClass: Class<*>?,
@@ -214,8 +218,7 @@ internal class BlockingGestureYielder(
           configureRelationsMethod != null &&
           dropMethod != null
 
-      fun module(context: ReactContext): Any? =
-        getNativeModule?.invoke(context, moduleClass)
+      fun module(context: ReactContext): Any? = getNativeModule?.invoke(context, moduleClass)
 
       fun createGestureHandler(
         module: Any,
