@@ -585,6 +585,11 @@ export interface NativeProps extends ViewProps {
    * Controls how the markdown parser interprets certain syntax.
    */
   md4cFlags: Md4cFlagsInternal;
+  /**
+   * Gesture-handler tags that wait for this document's over-wide, horizontally
+   * scrolled blocks (tables, code blocks) to release the touch.
+   */
+  blockingGestureTags?: ReadonlyArray<CodegenTypes.Int32>;
   /** Enables the GFM table, strikethrough, and task-list extensions. */
   isGFM?: CodegenTypes.WithDefault<boolean, false>;
   /**

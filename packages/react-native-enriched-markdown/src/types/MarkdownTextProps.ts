@@ -171,6 +171,16 @@ export interface StreamingConfig {
 
 export interface EnrichedMarkdownTextProps extends Omit<ViewProps, 'style'> {
   /**
+   * React Native Gesture Handler tags whose handlers must wait for this
+   * document's over-wide, horizontally scrolled blocks (tables, code blocks)
+   * to release the touch. Scroll inside those blocks wins when a touch starts
+   * on them, so callers pass constraint-free swipe-pan tags used by
+   * screen-level overlays, such as drawer swipes.
+   * Blocks without an attached pan-gesture relation are not affected.
+   * @platform ios, android
+   */
+  blockingGestureTags?: ReadonlyArray<number>;
+  /**
    * Markdown content to render.
    * @platform ios, android, web
    */
