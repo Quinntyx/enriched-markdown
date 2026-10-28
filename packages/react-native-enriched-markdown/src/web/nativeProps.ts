@@ -45,6 +45,7 @@ export const NATIVE_ONLY_PROP_NAMES: Record<NativeOnlyPropName, true> = {
   spoilerOverlay: true,
   contextMenuItems: true,
   imageRequestHeaders: true,
+  blockingGestureTags: true,
   linkPillContent: true,
   linkContextMenuItems: true,
   selectionMenuConfig: true,
